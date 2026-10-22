@@ -1,7 +1,7 @@
 # Research og produktretning: Trainer Studio
 
 Dato: 22. oktober 2026
-Status: grundlag for første fungerende version (`v0.1`)
+Status: første fungerende version med v0.2-forbedringer
 
 ## Formål og afgrænsning
 
@@ -189,7 +189,7 @@ TrainerStudio.Core            scanning, datatyper, profiler, trænerhandlinger
              │
 IApprovedMemoryTarget         lille, kontrolleret grænseflade til et godkendt mål
              │
-OwnedTestTarget               selvudviklet testbuffer i v0.1
+OwnedTestTarget               selvudviklet testbuffer i v0.2
 
 Senere, separate moduler:
 TrainerStudio.Targets         autoriseret Windows-adapter
@@ -270,11 +270,11 @@ skal have en forhåndsvisning og aldrig overskrive en profil uden brugerens valg
 
 ## Første fungerende version: hvad der er med
 
-Den aktuelle v0.1-kerne og WPF-skal leverer følgende mod det indbyggede testmål:
+Den aktuelle v0.2-kerne og WPF-skal leverer følgende mod det indbyggede testmål:
 
 - Et lokalt, selvudviklet testmål med dokumenterede værdier og distraktører,
   som kan åbnes i et separat WPF-testvindue. Det deler bevidst proces med
-  hovedappen i v0.1.
+  hovedappen i v0.2.
 - Exact/unknown/increased/decreased/changed/unchanged-søgning over de beskrevne
   primitive datatyper.
 - En mørk dansk begynderflade med testhandlinger, søgefelter og resultattabel.
@@ -282,10 +282,18 @@ Den aktuelle v0.1-kerne og WPF-skal leverer følgende mod det indbyggede testmå
 - Knap, kontakt, slider og talindtastning som virkende, gemte kontroltyper i
   WPF-skallen. Slideren validerer minimum, maksimum og trin; kontakt er
   afgrænset til fastholdelse og knappen kan gendanne en sessionsværdi.
+- Et kompakt **Min trainer**-panel med funktionskort grupperet efter kategori.
+  Panelet viser de rigtige kontroller direkte og genbruger den samme
+  godkendelse, auditlog og stopadfærd som editoren.
+- Kopiering, flytning og sletning af funktioner i den aktuelle trainerprofil.
+  Sletning af en aktiv fastholdelse stopper og gendanner først værdien.
 - Sæt, tilføj, fasthold og sessionbaseret gendan med eksplicit bekræftelse ved
   aktivering/deaktivering.
 - Lokal, atomisk JSON-gemning og indlæsning af profiler, modulrelative offsets
   og validering af målidentitet, arkitektur, version og build-fingeraftryk.
+- Profilbibliotek med duplikering, eksport, kontrolleret import som ny kopi og
+  op til ti automatiske backups af tidligere gemte profilversioner. Importen
+  accepterer kun valideret JSON på højst 2 MiB og aktiverer aldrig en funktion.
 - Lokal JSONL-auditlog af testhandlinger, søgeresultater, trainerhandlinger,
   profilhændelser, korrigerende fastholdelseswrites og synlige fejl.
 - En "hold øverst"-indstilling for det kompakte testvindue.
@@ -295,7 +303,7 @@ Den aktuelle v0.1-kerne og WPF-skal leverer følgende mod det indbyggede testmå
   versionsafvigelse, afvist deaktivering, auditlog, modulrelativ genstart og
   gentagne ammunition-scenarier.
 
-Følgende er **bevidst ikke** klar i v0.1 og må ikke beskrives som færdige:
+Følgende er **bevidst ikke** klar i v0.2 og må ikke beskrives som færdige:
 
 - Tilknytning til vilkårlige eller eksterne processer.
 - Separat testprogram via IPC og en genstartstest mod et rigtigt Windows-vindue.
@@ -306,8 +314,8 @@ Følgende er **bevidst ikke** klar i v0.1 og må ikke beskrives som færdige:
   offsets, men har ikke en Windows-procesadapter.
 - Drag-and-drop, ikoner, temasystem, fuld dansk/engelsk-ressourcepakke,
   globale hotkeys og en selvstændig eksporteret trainer.
-- Grafer, scanhistorik i UI, profilbibliotek, backup/import, CE-tabelimport,
-  selvstændig trainer-eksport, plug-ins, debugger eller strukturinspektion.
+- Grafer, scanhistorik i UI, CE-tabelimport, selvstændig trainer-eksport,
+  plug-ins, debugger eller strukturinspektion.
 
 Denne tydelige grænse er vigtig: testmodellen beviser scanner- og builderlogik,
 men den er ikke et løfte om bred procesunderstøttelse.
@@ -336,18 +344,20 @@ men den er ikke et løfte om bred procesunderstøttelse.
 
 ### Fase 4 — Trainer Builder og personligt panel
 
-- Udvid den eksisterende validering for sliderintervaller og talfelter med
-  hotkeys, grupper, noter, ikonmetadata og drag-and-drop-rækkefølge.
+- Udvid det eksisterende kompakte trainerpanel med hotkeys, ikonmetadata og
+  drag-and-drop-rækkefølge. Kategorier, kopiering og knapbaseret rækkefølge er
+  allerede på plads.
 - Tilføj “prøv før gem” som en særskilt workflow-knap og udvid den eksisterende
   auditlog med filtrering/eksport.
-- Tilføj et egentligt kompakt trainerpanel; den første skal har allerede en
-  "hold øverst"-indstilling.
+- Gør "hold øverst" og tilpassede temaer tilgængelige i det kompakte
+  trainerpanel.
 
 ### Fase 5 — Profiler og genstart
 
-- Byg mål- og profilbibliotek med flere profiler pr. program.
-- Indfør version/fingeraftryk, modulrelative referencer, grøn/gul/rød-status,
-  import/eksport og backup.
+- Udvid det lokale profilbibliotek med målgenkendelse og flere profiler pr.
+  program. Duplikering, eksport/import og backup er allerede implementeret.
+- Udvid den eksisterende validering af version/fingeraftryk og modulrelative
+  referencer med grøn/gul/rød-status direkte i bibliotekslisten.
 - Test hvert profilforløb efter rigtig genstart, ikke kun én session.
 
 ### Fase 6 — Avanceret, men stadig afgrænset analyse
@@ -365,7 +375,7 @@ men den er ikke et løfte om bred procesunderstøttelse.
 
 ## Acceptkriterier for næste milepæl
 
-Før måltypen udvides, skal v0.1/v0.2 kunne bevise:
+Før måltypen udvides, skal v0.2 kunne bevise:
 
 1. At et selvudviklet mål kan vælges og identificeres korrekt.
 2. At exact/unknown og alle næste filtre indsnævrer kandidater korrekt.

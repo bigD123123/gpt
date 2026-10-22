@@ -14,7 +14,7 @@ anti-cheat-omgåelse, kodeinjektion, speedhack, online-funktioner eller AI.
 Læs [research og roadmap](RESEARCH.md) for kildegrundlag, licenser,
 produktvalg og de funktioner, der bevidst er senere arbejde.
 
-## Hvad v0.1 kan
+## Hvad v0.2 kan
 
 - Søge i det ejede testmåls data med `Exact`, `Unknown`, `Increased`,
   `Decreased`, `Changed` og `Unchanged`.
@@ -24,6 +24,16 @@ produktvalg og de funktioner, der bevidst er senere arbejde.
 - Udføre `Indstil`, `Tilføj`, `Fasthold` og sessionbaseret `Gendan oprindelig`.
   En ændring kræver en tydelig bekræftelse.
 - Gemme og indlæse versionerede JSON-profiler med modulrelative offsets.
+- Åbne **Min trainer**: et kompakt vindue med kategorier og direkte knapper,
+  kontakter, sliders og talfelter for de funktioner, brugeren selv har oprettet.
+- Kopiere, flytte og fjerne funktioner i traineren. Rækkefølgen og kategorierne
+  gemmes i profilen.
+- Duplikere en profil, eksportere den til en flytbar
+  `.trainerprofile.json`-fil og importere den som en ny, selvstændig lokal kopi.
+  Importerede profiler og funktioner får nye id'er, så en import aldrig
+  overskriver en eksisterende trainer.
+- Oprette op til ti automatiske sikkerhedskopier af den forrige version, hver
+  gang en eksisterende profil gemmes igen.
 - Validere mål-id, arkitektur, version, build-fingeraftryk og læsbarhed, før en
   profil beskrives som klar.
 - Skrive lokale auditposter for testhandlinger, scanninger, funktioner,
@@ -34,9 +44,9 @@ produktvalg og de funktioner, der bevidst er senere arbejde.
 Det indbyggede testmål accepterer i denne version kun **Int32** som skrivbar
 trainerreference. De øvrige datatyper er med i scanmotoren og dens tests, men
 en valgt kandidat med en anden type kan ikke gøres til en skrivende funktion i
-v0.1.
+v0.2.
 
-## Hvad v0.1 ikke kan endnu
+## Hvad v0.2 ikke kan endnu
 
 - Tilknytte sig eksterne spil eller andre processer.
 - Lave pointer scanning, kodepatching, debugging eller strukturinspektion.
@@ -64,7 +74,7 @@ dotnet run --project .\tests\TrainerStudio.Core.Tests\TrainerStudio.Core.Tests.c
 dotnet run --project .\src\TrainerStudio.App\TrainerStudio.App.csproj -c Release
 ```
 
-Den første kommando skal slutte med `PASS: 14 Trainer Studio core tests`.
+Den første kommando skal slutte med `PASS: 16 Trainer Studio core tests`.
 Den anden starter WPF-appen.
 
 ## Prøv programmet
@@ -81,8 +91,9 @@ Følgende forløb finder testmålets valuta uden at gætte:
    én kandidat.
 5. I Trainer Builder vælger du fx **Knap**, **Indstil værdi**, giver funktionen
    et navn og skriver `999`. Tryk **Opret funktion fra eneste kandidat**.
-6. Vælg funktionen i **Min trainer**, tryk **Udfør valgt**, og godkend dialogen.
-   Valutaen bliver synligt opdateret.
+6. Tryk **Åbn min trainer**, find funktionen i dens kategori, tryk **Udfør** og
+   godkend dialogen. Valutaen bliver synligt opdateret. Den gamle boks
+   **Udfør valgt** virker fortsat, hvis du hellere vil teste fra editoren.
 7. Tryk **Gem profil**. Luk og åbn appen igen, vælg profilen under **Gemte
    profiler**, tryk **Indlæs valgt** og derefter **Valider profil**.
 
@@ -97,6 +108,13 @@ den konkrete værdi, når funktionen anvendes. Gendan-knappen virker kun i samme
 app-session, fordi en tidligere sessions “oprindelige værdi” ikke kan antages at
 være sikker efter genstart.
 
+Brug **Kopiér valgt**, **Flyt op**, **Flyt ned** og **Slet valgt** i editoren
+til at organisere menuen. Hvis en aktiv kontakt slettes, stopper programmet
+først fastholdelsen og gendanner sessionsværdien. Brug **Duplikér profil**, når
+du vil eksperimentere uden at ændre originalen. **Eksportér profil** laver en
+flytbar datafil; **Importér profil** opretter altid en ny lokal kopi og aktiverer
+ikke funktioner automatisk.
+
 **STOP ALLE (Esc)** stopper straks alle aktive fastholdelser uden at skrive nye
 værdier eller nulstille testspillet. Brug **Nulstil testspil** kun når du også
 vil starte data og søgning forfra.
@@ -107,6 +125,7 @@ Windows gemmer data her:
 
 ```text
 %LOCALAPPDATA%\TrainerStudio\Profiles\*.trainerprofile.json
+%LOCALAPPDATA%\TrainerStudio\Profiles\Backups\<profil-id>\*.trainerprofile.json
 %LOCALAPPDATA%\TrainerStudio\events.jsonl
 ```
 
@@ -145,5 +164,5 @@ dotnet run --project tests/TrainerStudio.Core.Tests/TrainerStudio.Core.Tests.csp
 dotnet build src/TrainerStudio.App/TrainerStudio.App.csproj -c Release -p:EnableWindowsTargeting=true
 ```
 
-Begge var grønne den 22. oktober 2026: 14 kernetests bestod, og WPF-projektet
+Begge var grønne den 22. oktober 2026: 16 kernetests bestod, og WPF-projektet
 byggede med 0 advarsler. WPF-vinduet kræver Windows for en faktisk GUI-kørsel.

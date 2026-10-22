@@ -158,7 +158,15 @@
 
             <Separator Margin="0,10,0,8" />
             <TextBlock Text="Min trainer" FontWeight="SemiBold" />
+            <TextBlock Text="Byg funktionen her og åbn derefter den kompakte menu, når du vil bruge den." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,2" />
             <ListBox x:Name="FeaturesList" ItemsSource="{Binding Features}" DisplayMemberPath="Name" SelectionChanged="FeaturesList_SelectionChanged" Background="#0D141C" Foreground="#E7F0F7" BorderBrush="#365269" Height="118" Margin="0,5,0,6" />
+            <WrapPanel Margin="0,0,0,4">
+              <Button Content="Åbn min trainer" Click="OpenTrainerPanel_Click" ToolTip="Åbn den kompakte menu med dine funktioner." />
+              <Button Content="Kopiér valgt" Click="DuplicateFeature_Click" ToolTip="Opret en ny kopi, som kan ændres uden at ændre originalen." />
+              <Button Content="Flyt op" Click="MoveFeatureUp_Click" ToolTip="Flyt den valgte funktion op i menuen." />
+              <Button Content="Flyt ned" Click="MoveFeatureDown_Click" ToolTip="Flyt den valgte funktion ned i menuen." />
+              <Button Content="Slet valgt" Click="DeleteFeature_Click" Background="{StaticResource Danger}" ToolTip="Fjern den valgte funktion fra den aktuelle profil." />
+            </WrapPanel>
             <Border Background="#132332" BorderBrush="#365269" BorderThickness="1" CornerRadius="4" Padding="8">
               <StackPanel>
                 <TextBlock x:Name="RuntimeFeatureText" FontWeight="SemiBold" Text="Vælg en funktion for at teste den." TextWrapping="Wrap" />
@@ -186,6 +194,12 @@
               <Button Content="Opdater liste" Click="RefreshProfiles_Click" />
               <Button Content="Gem profil" Click="SaveProfile_Click" />
             </WrapPanel>
+            <WrapPanel>
+              <Button Content="Duplikér profil" Click="DuplicateProfile_Click" ToolTip="Opret en kopi med nyt profil-id." />
+              <Button Content="Eksportér profil" Click="ExportProfile_Click" ToolTip="Gem en sikker kopi, som kan flyttes til en anden pc." />
+              <Button Content="Importér profil" Click="ImportProfile_Click" ToolTip="Indlæs en profil som en ny lokal kopi og valider den." />
+            </WrapPanel>
+            <TextBlock Text="Lokale gemninger laver automatisk op til ti sikkerhedskopier af den tidligere profil." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="4,2,0,0" />
             <TextBlock x:Name="TrainerStatusText" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="4,4,0,0" />
           </StackPanel>
         </ScrollViewer>

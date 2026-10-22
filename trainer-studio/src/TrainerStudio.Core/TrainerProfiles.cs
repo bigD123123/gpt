@@ -204,7 +204,7 @@ public static class TrainerBuilder
         return requested;
     }
 
-    private static void ValidateControlOperation(TrainerControlKind control, TrainerOperation operation)
+    internal static void ValidateControlOperation(TrainerControlKind control, TrainerOperation operation)
     {
         if (operation == TrainerOperation.FreezeValue && control != TrainerControlKind.Toggle)
         {
@@ -307,6 +307,8 @@ public static class ProfileValidator
 public sealed class ProfileStore
 {
     public const int SupportedSchemaVersion = 2;
+    public const long MaximumImportBytes = 2 * 1024 * 1024;
+    public const int BackupRetentionCount = 10;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -323,36 +325,272 @@ public sealed class ProfileStore
 
     public string GetPath(Guid profileId) => Path.Combine(RootDirectory, $"{profileId:D}.trainerprofile.json");
 
+    public string GetBackupDirectory(Guid profileId) => Path.Combine(RootDirectory, "Backups", profileId.ToString("D"));
+
     public void Save(TrainerProfile profile)
     {
-        ArgumentNullException.ThrowIfNull(profile);
-        if (profile.SchemaVersion != SupportedSchemaVersion)
-        {
-            throw new InvalidOperationException($"Kun profilformat {SupportedSchemaVersion} kan gemmes.");
-        }
+        ValidateProfile(profile, InvalidProfileExceptionKind.Save);
 
         Directory.CreateDirectory(RootDirectory);
         var path = GetPath(profile.Id);
-        var temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(profile, Options));
-        File.Move(temporary, path, overwrite: true);
+        if (File.Exists(path))
+        {
+            CreateBackup(path, profile.Id);
+        }
+
+        WriteAtomically(profile, path);
     }
 
     public TrainerProfile Load(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var profile = JsonSerializer.Deserialize<TrainerProfile>(File.ReadAllText(path), Options);
-        if (profile is null)
+        return ReadProfile(path, maximumBytes: null);
+    }
+
+    /// <summary>
+    /// Writes a portable JSON copy of a profile. It never changes the local
+    /// profile library or triggers a trainer action.
+    /// </summary>
+    public void Export(TrainerProfile profile, string destinationPath)
+    {
+        ValidateProfile(profile, InvalidProfileExceptionKind.Save);
+        EnsureProfileExtension(destinationPath, "Eksportfilen skal slutte med .trainerprofile.json.");
+
+        var sourcePath = GetPath(profile.Id);
+        if (PathsEqual(sourcePath, destinationPath))
         {
-            throw new InvalidDataException("Profilfilen indeholder ikke en gyldig trainerprofil.");
+            throw new ArgumentException("Eksportfilen må ikke være den samme som profilens lokale bibliotekskopi.", nameof(destinationPath));
         }
 
+        WriteAtomically(profile, destinationPath);
+    }
+
+    /// <summary>
+    /// Imports profile data only. The result always receives fresh profile and
+    /// feature ids before it is stored locally, so it cannot overwrite an
+    /// existing trainer profile.
+    /// </summary>
+    public TrainerProfile Import(string sourcePath)
+    {
+        EnsureProfileExtension(sourcePath, "Kun .trainerprofile.json-filer kan importeres.");
+        var source = ReadProfile(sourcePath, MaximumImportBytes);
+        var imported = CloneForNewProfile(source, $"Importeret kopi af {source.Name}");
+        Save(imported);
+        return imported;
+    }
+
+    /// <summary>
+    /// Creates and stores an independent local copy. This is useful for
+    /// experimenting without changing the original profile.
+    /// </summary>
+    public TrainerProfile Duplicate(TrainerProfile profile, string? name = null)
+    {
+        ValidateProfile(profile, InvalidProfileExceptionKind.Save);
+        var copy = CloneForNewProfile(profile, name);
+        Save(copy);
+        return copy;
+    }
+
+    public IReadOnlyList<string> ListBackupPaths(Guid profileId)
+    {
+        var directory = GetBackupDirectory(profileId);
+        if (!Directory.Exists(directory))
+        {
+            return [];
+        }
+
+        return Directory.EnumerateFiles(directory, "*.trainerprofile.json", SearchOption.TopDirectoryOnly)
+            .OrderByDescending(path => Path.GetFileName(path), StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static TrainerProfile CloneForNewProfile(TrainerProfile source, string? name)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return source with
+        {
+            Id = Guid.NewGuid(),
+            Name = string.IsNullOrWhiteSpace(name) ? $"Kopi af {source.Name}" : name.Trim(),
+            CreatedUtc = now,
+            UpdatedUtc = now,
+            Features = source.Features.Select(feature => feature with { Id = Guid.NewGuid() }).ToArray()
+        };
+    }
+
+    private void CreateBackup(string currentPath, Guid profileId)
+    {
+        var backupDirectory = GetBackupDirectory(profileId);
+        Directory.CreateDirectory(backupDirectory);
+        var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMdd'T'HHmmssfffffff'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        var backupPath = Path.Combine(backupDirectory, $"{stamp}.trainerprofile.json");
+        var sequence = 1;
+        while (File.Exists(backupPath))
+        {
+            backupPath = Path.Combine(backupDirectory, $"{stamp}-{sequence++:D2}.trainerprofile.json");
+        }
+
+        File.Copy(currentPath, backupPath, overwrite: false);
+        foreach (var expiredPath in ListBackupPaths(profileId).Skip(BackupRetentionCount))
+        {
+            File.Delete(expiredPath);
+        }
+    }
+
+    private static TrainerProfile ReadProfile(string path, long? maximumBytes)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var file = new FileInfo(path);
+        if (!file.Exists)
+        {
+            throw new FileNotFoundException("Profilfilen findes ikke.", path);
+        }
+
+        if (maximumBytes is { } maximum && file.Length > maximum)
+        {
+            throw new InvalidDataException($"Profilfilen er for stor. Maksimum er {MaximumImportBytes / (1024 * 1024)} MB.");
+        }
+
+        try
+        {
+            var profile = JsonSerializer.Deserialize<TrainerProfile>(File.ReadAllText(path), Options);
+            if (profile is null)
+            {
+                throw new InvalidDataException("Profilfilen indeholder ikke en gyldig trainerprofil.");
+            }
+
+            ValidateProfile(profile, InvalidProfileExceptionKind.Load);
+            return profile;
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("Profilfilen indeholder ugyldig JSON.", exception);
+        }
+    }
+
+    private static void WriteAtomically(TrainerProfile profile, string destinationPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        var directory = Path.GetDirectoryName(Path.GetFullPath(destinationPath));
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var temporary = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(profile, Options));
+            File.Move(temporary, destinationPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
+        }
+    }
+
+    private static void EnsureProfileExtension(string path, string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!path.EndsWith(".trainerprofile.json", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(message, nameof(path));
+        }
+    }
+
+    private static bool PathsEqual(string left, string right) => string.Equals(
+        Path.GetFullPath(left),
+        Path.GetFullPath(right),
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+
+    private static void ValidateProfile(TrainerProfile profile, InvalidProfileExceptionKind exceptionKind)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
         if (profile.SchemaVersion != SupportedSchemaVersion)
         {
-            throw new InvalidDataException($"Profilformat {profile.SchemaVersion} understøttes ikke. Forventede format {SupportedSchemaVersion}.");
+            ThrowInvalidProfile(exceptionKind, $"Profilformat {profile.SchemaVersion} understøttes ikke. Forventede format {SupportedSchemaVersion}.");
         }
 
-        return profile;
+        if (profile.Id == Guid.Empty)
+        {
+            ThrowInvalidProfile(exceptionKind, "Profilen mangler et gyldigt id.");
+        }
+
+        if (string.IsNullOrWhiteSpace(profile.Name))
+        {
+            ThrowInvalidProfile(exceptionKind, "Profilen mangler et navn.");
+        }
+
+        if (profile.Target is null ||
+            string.IsNullOrWhiteSpace(profile.Target.TargetId) ||
+            string.IsNullOrWhiteSpace(profile.Target.DisplayName) ||
+            string.IsNullOrWhiteSpace(profile.Target.Version) ||
+            string.IsNullOrWhiteSpace(profile.Target.Architecture) ||
+            string.IsNullOrWhiteSpace(profile.Target.ModuleName) ||
+            string.IsNullOrWhiteSpace(profile.Target.BuildFingerprint))
+        {
+            ThrowInvalidProfile(exceptionKind, "Profilen mangler gyldige mål-oplysninger.");
+        }
+
+        if (profile.Features is not { } features)
+        {
+            ThrowInvalidProfile(exceptionKind, "Profilen mangler sin funktionsliste.");
+            return;
+        }
+
+        var knownFeatureIds = new HashSet<Guid>();
+        foreach (var feature in features)
+        {
+            if (feature is null)
+            {
+                ThrowInvalidProfile(exceptionKind, "Profilen indeholder en tom funktion.");
+                continue;
+            }
+
+            if (feature.Id == Guid.Empty || !knownFeatureIds.Add(feature.Id))
+            {
+                ThrowInvalidProfile(exceptionKind, "Profilen indeholder en funktion med et ugyldigt eller gentaget id.");
+            }
+
+            var featureValue = feature.Value;
+            if (string.IsNullOrWhiteSpace(feature.Name) || featureValue is null || feature.Reference is null ||
+                string.IsNullOrWhiteSpace(feature.Reference.TargetId) ||
+                string.IsNullOrWhiteSpace(feature.Reference.ModuleName) ||
+                !Enum.IsDefined(feature.Reference.DataType) ||
+                !Enum.IsDefined(feature.Control) || !Enum.IsDefined(feature.Operation))
+            {
+                ThrowInvalidProfile(exceptionKind, $"Funktionen '{feature.Name ?? "(uden navn)"}' er ikke gyldigt formateret.");
+                continue;
+            }
+
+            try
+            {
+                TrainerBuilder.ValidateControlOperation(feature.Control, feature.Operation);
+                TrainerBuilder.ValidateRequestedValue(feature, featureValue, allowRestoreWithoutValue: true);
+            }
+            catch (Exception exception) when (exception is ArgumentException or FormatException or OverflowException)
+            {
+                ThrowInvalidProfile(exceptionKind, $"Funktionen '{feature.Name}' har ugyldige indstillinger: {exception.Message}");
+            }
+        }
+    }
+
+    private static void ThrowInvalidProfile(InvalidProfileExceptionKind kind, string message)
+    {
+        if (kind == InvalidProfileExceptionKind.Load)
+        {
+            throw new InvalidDataException(message);
+        }
+
+        throw new InvalidOperationException(message);
+    }
+
+    private enum InvalidProfileExceptionKind
+    {
+        Save,
+        Load
     }
 
     public IReadOnlyList<string> ListPaths()

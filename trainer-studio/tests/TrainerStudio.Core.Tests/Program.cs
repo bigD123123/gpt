@@ -6,6 +6,8 @@ var tests = new (string Name, Action Run)[]
     ("Unknown, increased, decreased, changed and unchanged filters", RelativeScanFilters),
     ("Supported value codecs round-trip", ValueCodecsRoundTrip),
     ("Trainer builder persists a validated profile", TrainerProfileRoundTrip),
+    ("Profile library exports, imports, duplicates and retains backups", ProfileLibraryRoundTrip),
+    ("Profile import rejects invalid or oversized files", ProfileImportRejectsUnsafeFiles),
     ("Freeze writes only after approval and restores original", FreezeAndRestore),
     ("Declined freeze deactivation leaves it active", DeclinedFreezeDeactivation),
     ("Stop all ends freezes without another write", StopAllEndsFreezes),
@@ -133,6 +135,71 @@ static void TrainerProfileRoundTrip()
     Equal(profile.Name, reloaded.Name);
     Equal(feature.Name, reloaded.Features.Single().Name);
     Equal(ProfileValidationState.Ready, ProfileValidator.Validate(reloaded, target).State);
+}
+
+static void ProfileLibraryRoundTrip()
+{
+    var target = new OwnedTestTarget();
+    var hit = new ScanHit(target.CurrencyAddress, ScanValue.Parse(ScanDataType.Int32, "50"), null, "OwnedTestGame.data");
+    var feature = TrainerBuilder.Create(hit, target, "Sæt mønter", TrainerOperation.SetValue, TrainerControlKind.Button, "999");
+    var profile = TrainerProfile.Create("Bærbar profil", target.Identity, "Eksporttest").WithFeature(feature);
+    var root = Path.Combine(Path.GetTempPath(), "trainer-studio-library-" + Guid.NewGuid().ToString("N"));
+    var store = new ProfileStore(root);
+    store.Save(profile);
+
+    var exportPath = Path.Combine(root, "portable", "baerbar.trainerprofile.json");
+    store.Export(profile, exportPath);
+    True(File.Exists(exportPath), "Eksportfilen blev ikke oprettet.");
+    Equal(profile.Id, store.Load(exportPath).Id);
+
+    var revised = profile with { Notes = "Opdateret lokal kopi", UpdatedUtc = DateTimeOffset.UtcNow };
+    store.Save(revised);
+    Equal(1, store.ListBackupPaths(profile.Id).Count);
+
+    for (var revision = 0; revision < ProfileStore.BackupRetentionCount + 3; revision++)
+    {
+        revised = revised with { Notes = $"Revision {revision}", UpdatedUtc = DateTimeOffset.UtcNow.AddTicks(revision + 1) };
+        store.Save(revised);
+    }
+
+    Equal(ProfileStore.BackupRetentionCount, store.ListBackupPaths(profile.Id).Count);
+
+    var imported = store.Import(exportPath);
+    True(imported.Id != profile.Id, "Importen skal få et nyt profil-id.");
+    True(imported.Features.Single().Id != feature.Id, "Importerede funktioner skal få nye ids.");
+    True(File.Exists(store.GetPath(imported.Id)), "Den importerede kopi blev ikke gemt lokalt.");
+    Equal(ProfileValidationState.Ready, ProfileValidator.Validate(imported, target).State);
+
+    var duplicated = store.Duplicate(imported);
+    True(duplicated.Id != imported.Id, "En duplikatprofil skal få et nyt profil-id.");
+    True(duplicated.Name.StartsWith("Kopi af ", StringComparison.Ordinal));
+    True(File.Exists(store.GetPath(duplicated.Id)), "Duplikatprofilen blev ikke gemt lokalt.");
+}
+
+static void ProfileImportRejectsUnsafeFiles()
+{
+    var root = Path.Combine(Path.GetTempPath(), "trainer-studio-invalid-import-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(root);
+    var store = new ProfileStore(Path.Combine(root, "library"));
+    var badExtension = Path.Combine(root, "profile.txt");
+    File.WriteAllText(badExtension, "{}");
+    Throws<ArgumentException>(() => store.Import(badExtension));
+    Equal(0, store.ListPaths().Count);
+
+    var malformed = Path.Combine(root, "bad.trainerprofile.json");
+    File.WriteAllText(malformed, "{ dette er ikke JSON }");
+    Throws<InvalidDataException>(() => store.Import(malformed));
+    Equal(0, store.ListPaths().Count);
+
+    var unsupportedSchema = Path.Combine(root, "old.trainerprofile.json");
+    File.WriteAllText(unsupportedSchema, "{\"SchemaVersion\":999}");
+    Throws<InvalidDataException>(() => store.Import(unsupportedSchema));
+    Equal(0, store.ListPaths().Count);
+
+    var oversized = Path.Combine(root, "large.trainerprofile.json");
+    File.WriteAllText(oversized, new string('x', checked((int)ProfileStore.MaximumImportBytes + 1)));
+    Throws<InvalidDataException>(() => store.Import(oversized));
+    Equal(0, store.ListPaths().Count);
 }
 
 static void FreezeAndRestore()

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -19,6 +20,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _freezeTimer;
     private TrainerProfile _profile;
     private TestGameWindow? _testGameWindow;
+    private TrainerPanelWindow? _trainerPanelWindow;
     private bool _updatingRuntimeControl;
 
     public MainWindow()
@@ -73,6 +75,7 @@ public partial class MainWindow : Window
         Hits.Clear();
         UpdateTargetState();
         ConfigureSelectedFeature();
+        RefreshTrainerPanel();
         ScanStatusText.Text = "Søgningen er ryddet, fordi testspillet blev nulstillet.";
         WriteAudit("target_reset", true, "Det ejede testspil blev nulstillet.");
         SetStatus(stopped > 0
@@ -116,6 +119,92 @@ public partial class MainWindow : Window
         _testGameWindow.Closed += (_, _) => _testGameWindow = null;
         _testGameWindow.Show();
         SetStatus("Det ejede testspil er åbnet i et separat vindue.");
+    }
+
+    private void OpenTrainerPanel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_trainerPanelWindow is { IsVisible: true })
+        {
+            _trainerPanelWindow.Activate();
+            return;
+        }
+
+        _trainerPanelWindow = new TrainerPanelWindow(
+            Features.ToArray(),
+            _runtime.IsFreezeActive,
+            (feature, value) => ActivateFeature(feature, value),
+            DeactivateFeature,
+            StopAll)
+        {
+            Owner = this
+        };
+        _trainerPanelWindow.Closed += (_, _) => _trainerPanelWindow = null;
+        _trainerPanelWindow.Show();
+        SetStatus("Din kompakte trainer-menu er åbnet. Alle ændringer kræver stadig godkendelse.");
+    }
+
+    private void DuplicateFeature_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedFeature() is not { } feature)
+        {
+            ShowError("Vælg en trainerfunktion, før den kopieres.");
+            return;
+        }
+
+        var copy = feature with
+        {
+            Id = Guid.NewGuid(),
+            Name = $"{feature.Name} (kopi)",
+            Hotkey = null
+        };
+        var index = Features.IndexOf(feature);
+        Features.Insert(index + 1, copy);
+        FeaturesList.SelectedItem = copy;
+        SyncProfile();
+        RefreshTrainerPanel();
+        WriteAudit("feature_duplicated", true, $"Funktionen '{feature.Name}' blev kopieret.", copy);
+        SetStatus("Kopien er oprettet. Ret eventuelt navn, værdi eller kategori, og gem derefter profilen.");
+    }
+
+    private void MoveFeatureUp_Click(object sender, RoutedEventArgs e) => MoveSelectedFeature(-1);
+
+    private void MoveFeatureDown_Click(object sender, RoutedEventArgs e) => MoveSelectedFeature(1);
+
+    private void DeleteFeature_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedFeature() is not { } feature)
+        {
+            ShowError("Vælg en trainerfunktion, før den slettes.");
+            return;
+        }
+
+        var isActive = _runtime.IsFreezeActive(feature);
+        var prompt = isActive
+            ? $"Vil du slette '{feature.Name}'? Den aktive fastholdelse bliver stoppet, og den oprindelige sessionsværdi gendannes."
+            : $"Vil du fjerne '{feature.Name}' fra den aktuelle profil?";
+        if (!Confirm(prompt))
+        {
+            return;
+        }
+
+        if (isActive)
+        {
+            var result = _runtime.Deactivate(_target, feature, userConfirmed: true);
+            if (!result.Succeeded)
+            {
+                HandleRuntimeResult(result, feature);
+                return;
+            }
+
+            WriteAudit("trainer_action", true, result.Message, feature, result.Before, result.After);
+        }
+
+        Features.Remove(feature);
+        SyncProfile();
+        ConfigureSelectedFeature();
+        RefreshTrainerPanel();
+        WriteAudit("feature_deleted", true, $"Funktionen '{feature.Name}' blev fjernet.", feature);
+        SetStatus("Funktionen er fjernet fra den aktuelle profil. Gem profilen for at bevare ændringen.");
     }
 
     private void Collect_Click(object sender, RoutedEventArgs e) => ApplyTargetAction(_target.CollectCurrency, "Valuta steg med 25.");
@@ -211,6 +300,7 @@ public partial class MainWindow : Window
             Features.Add(feature);
             FeaturesList.SelectedItem = feature;
             SyncProfile();
+            RefreshTrainerPanel();
             WriteAudit("feature_created", true, $"Funktionen '{feature.Name}' blev oprettet fra {row.Hit.AddressText}.", feature);
             TrainerStatusText.Text = $"{feature.Name} er føjet til din lokale trainer. Test den og gem derefter profilen.";
             SetStatus("Trainerfunktion oprettet. Den er deklarative data, ikke et script.");
@@ -301,16 +391,7 @@ public partial class MainWindow : Window
         try
         {
             _runtime.StopAll();
-            _profile = _store.Load(item.Path);
-            Features.Clear();
-            foreach (var feature in _profile.Features)
-            {
-                Features.Add(feature);
-            }
-
-            ProfileNameBox.Text = _profile.Name;
-            ProfileNotesBox.Text = _profile.Notes;
-            ConfigureSelectedFeature();
+            ApplyCurrentProfile(_store.Load(item.Path));
             var validation = ProfileValidator.Validate(_profile, _target);
             WriteAudit("profile_loaded", validation.IsReady, string.Join(" ", validation.Messages));
             TrainerStatusText.Text = string.Join(Environment.NewLine, validation.Messages);
@@ -326,6 +407,86 @@ public partial class MainWindow : Window
     {
         RefreshSavedProfiles();
         SetStatus("Listen over lokale profiler er opdateret.");
+    }
+
+    private void DuplicateProfile_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SyncProfile();
+            _runtime.StopAll();
+            var duplicate = _store.Duplicate(_profile);
+            ApplyCurrentProfile(duplicate);
+            RefreshSavedProfiles(duplicate.Id);
+            var validation = ProfileValidator.Validate(_profile, _target);
+            WriteAudit("profile_duplicated", validation.IsReady, $"Profilen blev kopieret som '{duplicate.Name}'.");
+            TrainerStatusText.Text = string.Join(Environment.NewLine, validation.Messages);
+            SetStatus("Profilkopien er oprettet med nyt id. Originalen er ikke ændret.");
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or IOException)
+        {
+            ShowError(exception.Message);
+        }
+    }
+
+    private void ExportProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Eksportér Trainer Studio-profil",
+            Filter = "Trainer Studio-profil (*.trainerprofile.json)|*.trainerprofile.json",
+            DefaultExt = ".trainerprofile.json",
+            AddExtension = true,
+            FileName = "min-trainer.trainerprofile.json"
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            SyncProfile();
+            _store.Export(_profile, dialog.FileName);
+            WriteAudit("profile_exported", true, $"Profilen '{_profile.Name}' blev eksporteret.");
+            TrainerStatusText.Text = $"Profilen er eksporteret til: {dialog.FileName}";
+            SetStatus("Profilen er eksporteret. Den indeholder data, ikke kode eller scripts.");
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            ShowError(exception.Message);
+        }
+    }
+
+    private void ImportProfile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Importér Trainer Studio-profil",
+            Filter = "Trainer Studio-profil (*.trainerprofile.json)|*.trainerprofile.json",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            _runtime.StopAll();
+            var imported = _store.Import(dialog.FileName);
+            ApplyCurrentProfile(imported);
+            RefreshSavedProfiles(imported.Id);
+            var validation = ProfileValidator.Validate(_profile, _target);
+            WriteAudit("profile_imported", validation.IsReady, $"Profilen blev importeret som '{imported.Name}'.");
+            TrainerStatusText.Text = string.Join(Environment.NewLine, validation.Messages);
+            SetStatus($"Profilen er importeret som en ny lokal kopi. Status: {DescribeValidationState(validation.State)}.");
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidDataException or InvalidOperationException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            ShowError(exception.Message);
+        }
     }
 
     private void DataTypeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -355,14 +516,15 @@ public partial class MainWindow : Window
         {
             UpdateTargetState();
             ConfigureSelectedFeature();
+            RefreshTrainerPanel();
         }
     }
 
-    private void ActivateFeature(TrainerFeature feature)
+    private void ActivateFeature(TrainerFeature feature, string? runtimeValue = null)
     {
-        var overrideValue = feature.Control is TrainerControlKind.Slider or TrainerControlKind.NumberInput
+        var overrideValue = runtimeValue ?? (feature.Control is TrainerControlKind.Slider or TrainerControlKind.NumberInput
             ? RuntimeValueBox.Text
-            : null;
+            : null);
         var actionDescription = feature.Operation == TrainerOperation.RestoreOriginal
             ? "gendanne den oprindelige sessionsværdi"
             : $"udføre '{feature.Name}'";
@@ -373,7 +535,7 @@ public partial class MainWindow : Window
         }
 
         var result = _runtime.Activate(_target, feature, userConfirmed: true, overrideValue);
-        HandleRuntimeResult(result);
+        HandleRuntimeResult(result, feature);
     }
 
     private void DeactivateFeature(TrainerFeature feature)
@@ -385,15 +547,16 @@ public partial class MainWindow : Window
         }
 
         var result = _runtime.Deactivate(_target, feature, userConfirmed: true);
-        HandleRuntimeResult(result);
+        HandleRuntimeResult(result, feature);
     }
 
-    private void HandleRuntimeResult(TrainerActionResult result)
+    private void HandleRuntimeResult(TrainerActionResult result, TrainerFeature? feature = null)
     {
         UpdateTargetState();
-        WriteAudit("trainer_action", result.Succeeded, result.Message, SelectedFeature(), result.Before, result.After);
+        WriteAudit("trainer_action", result.Succeeded, result.Message, feature ?? SelectedFeature(), result.Before, result.After);
         TrainerStatusText.Text = result.Message;
         ConfigureSelectedFeature();
+        RefreshTrainerPanel();
         SetStatus(result.Succeeded ? "Trainerhandlingen blev udført og vist." : result.Message);
     }
 
@@ -424,6 +587,7 @@ public partial class MainWindow : Window
             Hits.Clear();
             ScanStatusText.Text = "Søgningen blev ryddet, fordi testspillet blev nulstillet.";
             ConfigureSelectedFeature();
+            RefreshTrainerPanel();
         }
 
         UpdateTargetState();
@@ -440,6 +604,7 @@ public partial class MainWindow : Window
             : "Ingen aktiv fastholdelse var i gang.";
         WriteAudit("stop_all", true, message);
         TrainerStatusText.Text = message;
+        RefreshTrainerPanel();
         SetStatus(message);
     }
 
@@ -593,6 +758,53 @@ public partial class MainWindow : Window
                 SavedProfiles.Add(new StoredProfileItem(path, Guid.Empty, $"[kan ikke indlæse] {Path.GetFileName(path)}"));
             }
         }
+    }
+
+    private void RefreshTrainerPanel()
+    {
+        if (_trainerPanelWindow is { IsVisible: true })
+        {
+            _trainerPanelWindow.Refresh(Features.ToArray());
+        }
+    }
+
+    private void ApplyCurrentProfile(TrainerProfile profile)
+    {
+        _profile = profile ?? throw new ArgumentNullException(nameof(profile));
+        Features.Clear();
+        foreach (var feature in _profile.Features)
+        {
+            Features.Add(feature);
+        }
+
+        ProfileNameBox.Text = _profile.Name;
+        ProfileNotesBox.Text = _profile.Notes;
+        ConfigureSelectedFeature();
+        RefreshTrainerPanel();
+    }
+
+    private void MoveSelectedFeature(int direction)
+    {
+        if (SelectedFeature() is not { } feature)
+        {
+            ShowError("Vælg en trainerfunktion først.");
+            return;
+        }
+
+        var currentIndex = Features.IndexOf(feature);
+        var newIndex = currentIndex + direction;
+        if (newIndex < 0 || newIndex >= Features.Count)
+        {
+            SetStatus(direction < 0 ? "Funktionen ligger allerede øverst." : "Funktionen ligger allerede nederst.");
+            return;
+        }
+
+        Features.Move(currentIndex, newIndex);
+        FeaturesList.SelectedItem = feature;
+        SyncProfile();
+        RefreshTrainerPanel();
+        WriteAudit("feature_reordered", true, $"Funktionen '{feature.Name}' blev flyttet i trainer-menuen.", feature);
+        SetStatus("Rækkefølgen er ændret. Gem profilen for at bevare den.");
     }
 
     private void ShowHits()
