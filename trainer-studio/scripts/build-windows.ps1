@@ -5,6 +5,8 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $appProject = Join-Path $projectRoot 'src\TrainerStudio.App\TrainerStudio.App.csproj'
 $testProject = Join-Path $projectRoot 'tests\TrainerStudio.Core.Tests\TrainerStudio.Core.Tests.csproj'
+$themeTestProject = Join-Path $projectRoot 'tests\TrainerStudio.Theme.Tests\TrainerStudio.Theme.Tests.csproj'
+$themeTestOutput = Join-Path $projectRoot 'artifacts\theme-tests'
 $publishDirectory = Join-Path $projectRoot 'artifacts\TrainerStudio-win-x64'
 
 Push-Location $projectRoot
@@ -14,6 +16,11 @@ try {
 
     Write-Host 'Kører kernetestene ...'
     dotnet run --project $testProject -c Release
+    if ($LASTEXITCODE -ne 0) { throw 'Kernetestene fejlede. Udgaven bliver ikke publiceret.' }
+
+    Write-Host 'Kontrollerer mørkt tema på Windows ...'
+    dotnet run --project $themeTestProject -c Release -- $themeTestOutput
+    if ($LASTEXITCODE -ne 0) { throw 'Windows-tematestene fejlede. Se billederne i artifacts\theme-tests.' }
 
     Write-Host 'Publicerer selvstændig Windows x64-udgave ...'
     dotnet publish $appProject `
@@ -25,6 +32,7 @@ try {
         -p:DebugType=None `
         -p:DebugSymbols=false `
         -o $publishDirectory
+    if ($LASTEXITCODE -ne 0) { throw 'Windows-publiceringen fejlede.' }
 
     $exe = Join-Path $publishDirectory 'TrainerStudio.exe'
     if (-not (Test-Path $exe)) {

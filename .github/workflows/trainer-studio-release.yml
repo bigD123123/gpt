@@ -2,8 +2,13 @@ name: Publish Trainer Studio
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "trainer-studio-v*"
+    paths:
+      - "trainer-studio/**"
+      - ".github/workflows/trainer-studio-release.yml"
 
 permissions:
   contents: write
@@ -27,7 +32,22 @@ jobs:
           .\trainer-studio\tests\TrainerStudio.Core.Tests\TrainerStudio.Core.Tests.csproj
           -c Release
 
+      - name: Verify rendered Windows theme
+        run: >
+          dotnet run --project
+          .\trainer-studio\tests\TrainerStudio.Theme.Tests\TrainerStudio.Theme.Tests.csproj
+          -c Release -- .\release\theme-tests
+
+      - name: Upload Windows theme screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trainer-studio-theme-checks
+          path: release/theme-tests/*.png
+          if-no-files-found: warn
+
       - name: Build release archive
+        if: startsWith(github.ref, 'refs/tags/trainer-studio-v')
         shell: pwsh
         run: |
           $releaseDirectory = "release\TrainerStudio-win-x64"
@@ -51,6 +71,7 @@ jobs:
           "$archiveHash  $(Split-Path $archive -Leaf)" | Set-Content $checksum -NoNewline
 
       - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/trainer-studio-v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -61,4 +82,5 @@ jobs:
             --title "Trainer Studio $version" `
             --notes "Windows-pakken indeholder TrainerStudio.exe og dens SHA-256-kontrolsum. Kildekoden kan hentes fra GitHubs automatiske Source code-arkiv for denne release." `
             "release\Trainer-Studio-$env:GITHUB_REF_NAME-win-x64.zip" `
-            "release\Trainer-Studio-$env:GITHUB_REF_NAME.sha256"
+            "release\Trainer-Studio-$env:GITHUB_REF_NAME.sha256" `
+            "release\theme-tests\main-window.png"

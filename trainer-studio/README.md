@@ -14,6 +14,10 @@ anti-cheat-omgåelse, kodeinjektion, speedhack, online-funktioner eller AI.
 Læs [research og roadmap](RESEARCH.md) for kildegrundlag, licenser,
 produktvalg og de funktioner, der bevidst er senere arbejde.
 
+Version **0.2.1** retter kontrasten i lukkede og åbne rullemenuer,
+deaktiverede knapper, tabeloverskrifter, resultatrækker og scrollbars.
+Versionsnummeret vises i hovedvinduets titellinje.
+
 ## Hvad v0.2 kan
 
 - Søge i det ejede testmåls data med `Exact`, `Unknown`, `Increased`,
@@ -71,11 +75,13 @@ AI eller GPU.
 
 ```powershell
 dotnet run --project .\tests\TrainerStudio.Core.Tests\TrainerStudio.Core.Tests.csproj -c Release
+dotnet run --project .\tests\TrainerStudio.Theme.Tests\TrainerStudio.Theme.Tests.csproj -c Release -- .\artifacts\theme-tests
 dotnet run --project .\src\TrainerStudio.App\TrainerStudio.App.csproj -c Release
 ```
 
 Den første kommando skal slutte med `PASS: 16 Trainer Studio core tests`.
-Den anden starter WPF-appen.
+Den anden kontrollerer de faktisk renderede WPF-farver på Windows og gemmer
+PNG-billeder i `artifacts\theme-tests`. Den tredje starter WPF-appen.
 
 ## Prøv programmet
 
@@ -142,7 +148,7 @@ Kør i PowerShell fra `trainer-studio`:
 powershell -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1
 ```
 
-Scriptet kører kernetestene og publicerer en selvstændig x64-udgave i
+Scriptet kører kerne- og Windows-tematestene og publicerer en selvstændig x64-udgave i
 `artifacts\TrainerStudio-win-x64\TrainerStudio.exe` sammen med en
 SHA-256-fil. Modtageren behøver ikke .NET SDK for at køre den publicerede
 udgave.
