@@ -32,5 +32,39 @@
       <Setter Property="Background" Value="#0D141C" />
       <Setter Property="BorderBrush" Value="#50758D" />
     </Style>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="Foreground" Value="#E7F0F7" />
+      <Setter Property="Background" Value="#0D141C" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="ItemBorder"
+                    Background="{TemplateBinding Background}"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+              <ContentPresenter Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="#2A4A62" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="ItemBorder" Property="Background" Value="#50B7C7" />
+                <Setter Property="Foreground" Value="#111820" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="#768895" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Application.Resources>
 </Application>

@@ -55,9 +55,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $version = $env:GITHUB_REF_NAME -replace '^trainer-studio-', ''
           gh release create "$env:GITHUB_REF_NAME" `
             --repo "$env:GITHUB_REPOSITORY" `
-            --title "Trainer Studio v0.1" `
+            --title "Trainer Studio $version" `
             --notes "Første fungerende Trainer Studio-prototype. Windows-pakken indeholder TrainerStudio.exe og dens SHA-256-kontrolsum. Kildekoden kan hentes fra GitHubs automatiske Source code-arkiv for denne release." `
             "release\Trainer-Studio-$env:GITHUB_REF_NAME-win-x64.zip" `
             "release\Trainer-Studio-$env:GITHUB_REF_NAME.sha256"
