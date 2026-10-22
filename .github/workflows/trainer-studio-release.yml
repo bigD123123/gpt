@@ -1,0 +1,63 @@
+name: Publish Trainer Studio
+
+on:
+  push:
+    tags:
+      - "trainer-studio-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build and publish Windows release
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run core tests
+        run: >
+          dotnet run --project
+          .\trainer-studio\tests\TrainerStudio.Core.Tests\TrainerStudio.Core.Tests.csproj
+          -c Release
+
+      - name: Build release archive
+        shell: pwsh
+        run: |
+          $releaseDirectory = "release\TrainerStudio-win-x64"
+          $archive = "release\Trainer-Studio-$env:GITHUB_REF_NAME-win-x64.zip"
+          $checksum = "release\Trainer-Studio-$env:GITHUB_REF_NAME.sha256"
+
+          dotnet publish .\trainer-studio\src\TrainerStudio.App\TrainerStudio.App.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o $releaseDirectory
+
+          $exeHash = (Get-FileHash "$releaseDirectory\TrainerStudio.exe" -Algorithm SHA256).Hash.ToLower()
+          "$exeHash  TrainerStudio.exe" | Set-Content "$releaseDirectory\TrainerStudio.exe.sha256" -NoNewline
+          Compress-Archive -Path "$releaseDirectory\*" -DestinationPath $archive -Force
+          $archiveHash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          "$archiveHash  $(Split-Path $archive -Leaf)" | Set-Content $checksum -NoNewline
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --title "Trainer Studio v0.1" `
+            --notes "Første fungerende Trainer Studio-prototype. Windows-pakken indeholder TrainerStudio.exe og dens SHA-256-kontrolsum. Kildekoden kan hentes fra GitHubs automatiske Source code-arkiv for denne release." `
+            "release\Trainer-Studio-$env:GITHUB_REF_NAME-win-x64.zip" `
+            "release\Trainer-Studio-$env:GITHUB_REF_NAME.sha256"
