@@ -1,0 +1,24 @@
+name: Build Windows application
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test and build
+        shell: pwsh
+        run: ./scripts/build-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-Automation-Lab-Windows
+          path: |
+            dist/AI-Automation-Lab.exe
+            dist/AI-Automation-Lab.exe.sha256
+          if-no-files-found: error

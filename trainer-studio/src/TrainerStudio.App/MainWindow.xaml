@@ -1,0 +1,199 @@
+<Window x:Class="TrainerStudio.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Trainer Studio – eget testmål" Height="980" Width="1460" MinHeight="740" MinWidth="1100"
+        Background="{StaticResource PageBackground}" Foreground="#E7F0F7" PreviewKeyDown="Window_PreviewKeyDown">
+  <Grid Margin="22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0">
+      <TextBlock Text="TRAINER STUDIO" FontSize="29" FontWeight="Bold" />
+      <TextBlock Text="Begyndertilstand · Find værdi → indsnævr → opret funktion → gem trainer" Foreground="{StaticResource Muted}" Margin="0,5,0,16" />
+    </StackPanel>
+
+    <Border Grid.Row="1" Background="{StaticResource PanelBackground}" BorderBrush="#365269" BorderThickness="1" CornerRadius="7" Padding="12" Margin="0,0,0,14">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock Text="Godkendt mål" FontWeight="SemiBold" />
+          <TextBlock x:Name="TargetText" Foreground="{StaticResource Muted}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+          <CheckBox x:Name="TopmostCheckBox" Content="Hold øverst" Margin="4" Checked="TopmostCheckBox_Checked" Unchecked="TopmostCheckBox_Unchecked" />
+          <Button Content="Åbn testspil" Click="OpenTestGame_Click" />
+          <Button Content="STOP ALLE (Esc)" Background="{StaticResource Danger}" Click="StopAll_Click" />
+          <Button Content="Nulstil testspil" Click="ResetTarget_Click" />
+          <Button Content="Valider profil" Click="ValidateProfile_Click" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="1.1*" />
+        <ColumnDefinition Width="1.65*" />
+        <ColumnDefinition Width="1.15*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0" Background="{StaticResource PanelBackground}" BorderBrush="#365269" BorderThickness="1" CornerRadius="7" Padding="14" Margin="0,0,10,0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock Text="1. Ændr noget i testspillet" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Text="Brug disse dokumenterede testhandlinger. De påvirker kun det indbyggede mål." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,10" />
+            <UniformGrid Columns="2" Margin="0,0,0,10">
+              <Button Content="Saml +25" Click="Collect_Click" />
+              <Button Content="Køb −10" Click="Spend_Click" />
+              <Button Content="Tag skade −15" Click="Damage_Click" />
+              <Button Content="Helbred +10" Click="Heal_Click" />
+              <Button Content="Affyr −1" Click="Fire_Click" />
+              <Button Content="Genlad +5" Click="Reload_Click" />
+              <Button Content="Dræn stamina" Click="DrainStamina_Click" />
+              <Button Content="Timer −1" Click="TickTimer_Click" />
+            </UniformGrid>
+            <TextBlock Text="Aktuel tilstand" FontWeight="SemiBold" Margin="0,12,0,4" />
+            <TextBlock x:Name="GameStateText" FontFamily="Consolas" Foreground="#CDE6F3" TextWrapping="Wrap" />
+            <Separator Margin="0,18,0,12" />
+            <TextBlock Text="Hjælp" FontWeight="SemiBold" />
+            <TextBlock Text="• Første søgning: præcis værdi eller ukendt startværdi.&#x0a;• Ændr derefter tallet i testspillet.&#x0a;• Vælg fx Steget, Faldet eller Præcis værdi ved næste søgning.&#x0a;• Opret først en trainerfunktion, når kun én kandidat er tilbage." Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <Border Grid.Column="1" Background="{StaticResource PanelBackground}" BorderBrush="#365269" BorderThickness="1" CornerRadius="7" Padding="14" Margin="0,0,10,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+          <TextBlock Text="2. Find værdien" FontSize="17" FontWeight="SemiBold" />
+          <Grid Grid.Row="1" Margin="0,8,0,8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="Datatype" Foreground="{StaticResource Muted}" />
+              <ComboBox x:Name="DataTypeBox" SelectedIndex="4">
+                <ComboBoxItem Content="Int8" /><ComboBoxItem Content="UInt8" /><ComboBoxItem Content="Int16" /><ComboBoxItem Content="UInt16" />
+                <ComboBoxItem Content="Int32" /><ComboBoxItem Content="UInt32" /><ComboBoxItem Content="Int64" /><ComboBoxItem Content="UInt64" />
+                <ComboBoxItem Content="Float" /><ComboBoxItem Content="Double" /><ComboBoxItem Content="Boolean" />
+              </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+              <TextBlock Text="Sammenligning" Foreground="{StaticResource Muted}" />
+              <ComboBox x:Name="ConditionBox" SelectedIndex="0">
+                <ComboBoxItem Content="Præcis værdi" /><ComboBoxItem Content="Ukendt startværdi" /><ComboBoxItem Content="Steget" />
+                <ComboBoxItem Content="Faldet" /><ComboBoxItem Content="Ændret" /><ComboBoxItem Content="Uændret" />
+              </ComboBox>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <TextBlock Text="Værdi" Foreground="{StaticResource Muted}" />
+              <TextBox x:Name="SearchValueBox" Text="50" />
+            </StackPanel>
+          </Grid>
+          <DataGrid Grid.Row="2" x:Name="ResultsGrid" ItemsSource="{Binding Hits}" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" CanUserAddRows="False" Background="#0D141C" Foreground="#E7F0F7" BorderBrush="#365269">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Adresse" Binding="{Binding AddressText}" Width="*" />
+              <DataGridTextColumn Header="Aktuel" Binding="{Binding Current}" Width="*" />
+              <DataGridTextColumn Header="Ændring" Binding="{Binding Change}" Width="1.3*" />
+              <DataGridTextColumn Header="Region" Binding="{Binding Region}" Width="1.2*" />
+            </DataGrid.Columns>
+          </DataGrid>
+          <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Content="Første søgning" Click="FirstScan_Click" />
+            <Button Content="Næste søgning" Click="NextScan_Click" />
+            <Button Content="Ryd søgning" Click="ClearScan_Click" />
+            <TextBlock x:Name="ScanStatusText" VerticalAlignment="Center" Foreground="{StaticResource Muted}" Margin="10,0,0,0" TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Border Grid.Column="2" Background="{StaticResource PanelBackground}" BorderBrush="#365269" BorderThickness="1" CornerRadius="7" Padding="14">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock Text="3. Trainer Builder" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Text="Indsnævr først til én kandidat. Funktionen gemmes som data og kan testes før profilen gemmes." Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,8" />
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Text="Navn" Foreground="{StaticResource Muted}" />
+                <TextBox x:Name="FeatureNameBox" Text="Sæt værdi" />
+                <TextBlock Text="Kontrol" Foreground="{StaticResource Muted}" />
+                <ComboBox x:Name="ControlBox" SelectedIndex="0">
+                  <ComboBoxItem Content="Knap" /><ComboBoxItem Content="Kontakt" /><ComboBoxItem Content="Slider" /><ComboBoxItem Content="Talindtastning" />
+                </ComboBox>
+                <TextBlock Text="Kategori" Foreground="{StaticResource Muted}" />
+                <TextBox x:Name="CategoryBox" Text="Min trainer" />
+              </StackPanel>
+              <StackPanel Grid.Column="1">
+                <TextBlock Text="Handling" Foreground="{StaticResource Muted}" />
+                <ComboBox x:Name="OperationBox" SelectedIndex="0">
+                  <ComboBoxItem Content="Indstil værdi" /><ComboBoxItem Content="Tilføj værdi" /><ComboBoxItem Content="Fasthold værdi" /><ComboBoxItem Content="Gendan oprindelig" />
+                </ComboBox>
+                <TextBlock Text="Værdi" Foreground="{StaticResource Muted}" />
+                <TextBox x:Name="FeatureValueBox" Text="999" />
+                <TextBlock Text="Genvej (gemmes til senere)" Foreground="{StaticResource Muted}" />
+                <TextBox x:Name="HotkeyBox" Text="F1" />
+              </StackPanel>
+            </Grid>
+            <Grid x:Name="SliderOptionsPanel" Margin="0,4,0,2">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <StackPanel><TextBlock Text="Slider min." Foreground="{StaticResource Muted}" /><TextBox x:Name="SliderMinimumBox" Text="0" /></StackPanel>
+              <StackPanel Grid.Column="1"><TextBlock Text="Slider maks." Foreground="{StaticResource Muted}" /><TextBox x:Name="SliderMaximumBox" Text="1000" /></StackPanel>
+              <StackPanel Grid.Column="2"><TextBlock Text="Trin" Foreground="{StaticResource Muted}" /><TextBox x:Name="SliderStepBox" Text="1" /></StackPanel>
+            </Grid>
+            <TextBlock x:Name="BuilderHintText" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="4,2,0,2" />
+            <Button Content="Opret funktion fra eneste kandidat" Click="CreateFeature_Click" HorizontalAlignment="Left" />
+
+            <Separator Margin="0,10,0,8" />
+            <TextBlock Text="Min trainer" FontWeight="SemiBold" />
+            <ListBox x:Name="FeaturesList" ItemsSource="{Binding Features}" DisplayMemberPath="Name" SelectionChanged="FeaturesList_SelectionChanged" Background="#0D141C" Foreground="#E7F0F7" BorderBrush="#365269" Height="118" Margin="0,5,0,6" />
+            <Border Background="#132332" BorderBrush="#365269" BorderThickness="1" CornerRadius="4" Padding="8">
+              <StackPanel>
+                <TextBlock x:Name="RuntimeFeatureText" FontWeight="SemiBold" Text="Vælg en funktion for at teste den." TextWrapping="Wrap" />
+                <TextBox x:Name="RuntimeValueBox" Margin="0,6,0,2" />
+                <Slider x:Name="RuntimeSlider" Minimum="0" Maximum="100" Value="0" TickFrequency="1" IsSnapToTickEnabled="True" Visibility="Collapsed" ValueChanged="RuntimeSlider_ValueChanged" />
+                <TextBlock x:Name="RuntimeSliderValueText" Foreground="{StaticResource Muted}" Visibility="Collapsed" />
+                <CheckBox x:Name="RuntimeToggle" Content="Aktiv" Margin="0,6,0,2" Visibility="Collapsed" Checked="RuntimeToggle_Checked" Unchecked="RuntimeToggle_Unchecked" />
+                <WrapPanel Margin="0,4,0,0">
+                  <Button x:Name="RuntimeApplyButton" Content="Udfør valgt" Click="ActivateFeature_Click" />
+                  <Button x:Name="RuntimeDeactivateButton" Content="Deaktivér og gendan" Click="DeactivateFeature_Click" />
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+
+            <Separator Margin="0,10,0,8" />
+            <TextBlock Text="Profil" FontWeight="SemiBold" />
+            <TextBlock Text="Profilnavn" Foreground="{StaticResource Muted}" />
+            <TextBox x:Name="ProfileNameBox" Text="Mit eget testspil" />
+            <TextBlock Text="Noter" Foreground="{StaticResource Muted}" />
+            <TextBox x:Name="ProfileNotesBox" AcceptsReturn="True" Height="42" TextWrapping="Wrap" />
+            <TextBlock Text="Gemte profiler" Foreground="{StaticResource Muted}" />
+            <ComboBox x:Name="SavedProfilesBox" ItemsSource="{Binding SavedProfiles}" DisplayMemberPath="Display" />
+            <WrapPanel>
+              <Button Content="Indlæs valgt" Click="LoadSelectedProfile_Click" />
+              <Button Content="Opdater liste" Click="RefreshProfiles_Click" />
+              <Button Content="Gem profil" Click="SaveProfile_Click" />
+            </WrapPanel>
+            <TextBlock x:Name="TrainerStatusText" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="4,4,0,0" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="3" Background="#0D141C" BorderBrush="#365269" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,14,0,0">
+      <TextBlock x:Name="StatusText" Foreground="#BFE6C5" TextWrapping="Wrap" />
+    </Border>
+  </Grid>
+</Window>
