@@ -110,6 +110,7 @@ public partial class ProcessWorkspaceWindow : Window
             ApplyProfile(TrainerProfile.Create($"{selected.Name} – min trainer", target.Identity));
             TargetInfoText.Text = $"{selected.Name} · PID {selected.ProcessId} · {target.Identity.Architecture} · version {target.Identity.Version} · {selected.EngineHint}\n{selected.ExecutablePath}";
             ClearScan();
+            ProfilesBox.SelectedItem = Profiles.FirstOrDefault(item => StringComparer.Ordinal.Equals(item.Profile.Target.TargetId, target.Identity.TargetId));
             UpdateRecognition();
             Log("process_attached", true, $"Tilknyttet PID {selected.ProcessId} i læsetilstand. Build: {target.Identity.BuildFingerprint}.");
             SetStatus("Proces tilknyttet. Søg efter en værdi; slå kun værdiændringer til, når du vil afprøve en funktion.");

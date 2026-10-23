@@ -62,8 +62,11 @@ internal static class Program
                 StartAddress: allocation.Address, EndAddressExclusive: allocation.Address + 3 * 4096));
             var expectedPointerSize = descriptor.Architecture == "x86" ? 4 : 8;
             Require(target.IsAlive && target.Identity.TargetId == descriptor.TargetId && target.PointerSize == expectedPointerSize, "Target must retain selected live process identity and pointer width.");
-            Require(target.Modules.Count > 0 && target.TryResolveModuleBase(target.Identity.ModuleName, out var moduleBase) && moduleBase > 0,
-                "The primary module must resolve from the process module list.");
+            var primaryResolved = target.TryResolveModuleBase(target.Identity.ModuleName, out var moduleBase);
+            Require(target.Modules.Count > 0 && primaryResolved && moduleBase > 0,
+                $"The primary module must resolve from the process module list. Expected='{target.Identity.ModuleName}'; " +
+                $"architecture={descriptor.Architecture}; resolved={primaryResolved}; base=0x{moduleBase:X}; error={target.LastModuleError ?? "none"}; " +
+                "modules=" + string.Join(" | ", target.Modules.Select(module => $"'{module.Name}'@0x{module.BaseAddress:X}, size={module.Size}, path='{module.Path}'")));
             var duplicateModules = new[]
             {
                 new TargetModule("shared.dll", 0x1000, 4096, @"C:\one\shared.dll"),
@@ -75,6 +78,9 @@ internal static class Program
                 "The module fingerprint selector must also reject duplicate DLL basenames.");
             Require(WindowsProcessTarget.TryResolveUniqueModule(duplicateModules.Take(1), "SHARED.dll", out var uniqueBase) && uniqueBase == 0x1000,
                 "A single module basename should resolve without case sensitivity.");
+            Require(WindowsProcessTarget.TryResolveUniqueModule([duplicateModules[0], duplicateModules[0] with { Name = "SHARED.DLL", Path = @"c:\ONE\shared.dll" }],
+                "shared.dll", out var duplicatedRecordBase) && duplicatedRecordBase == 0x1000,
+                "An identical module record repeated by WOW64 snapshot flags should not create false ambiguity.");
             Require(target.TryGetModuleFingerprint(target.Identity.ModuleName, out var moduleFingerprint) && moduleFingerprint == target.Identity.BuildFingerprint,
                 "The loaded executable module fingerprint must match its primary executable SHA-256.");
             Require(target.TryGetModuleFingerprint(target.Identity.ModuleName.ToUpperInvariant(), out var cachedFingerprint) && cachedFingerprint == moduleFingerprint,

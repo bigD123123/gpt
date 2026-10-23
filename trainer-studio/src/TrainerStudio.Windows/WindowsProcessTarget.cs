@@ -70,6 +70,7 @@ public sealed class WindowsProcessTarget : IApprovedMemoryTarget, IStreamingMemo
     }
     public IReadOnlyList<TargetModule> Modules => _modules;
     public MemorySnapshotReport LastSnapshotReport { get; private set; } = new(0, 0, 0, false, "Ingen søgning endnu.");
+    public string? LastModuleError { get; private set; }
     public bool WasSnapshotTruncated => LastSnapshotReport.WasTruncated;
     public long SnapshotBytesRead => LastSnapshotReport.BytesRead;
     public int SkippedReadCount => LastSnapshotReport.SkippedReadCount;
@@ -196,10 +197,17 @@ public sealed class WindowsProcessTarget : IApprovedMemoryTarget, IStreamingMemo
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
         {
+            LastModuleError = exception.Message;
             return false;
         }
 
-        return TryResolveUniqueModule(_modules, moduleName, out baseAddress);
+        var resolved = TryResolveUniqueModule(_modules, moduleName, out baseAddress);
+        if (!resolved)
+        {
+            LastModuleError = $"Modulnavnet '{moduleName}' er ikke fundet entydigt i den valgte proces.";
+        }
+
+        return resolved;
     }
 
     internal static bool TryResolveUniqueModule(IEnumerable<TargetModule> modules, string moduleName, out long baseAddress)
@@ -271,9 +279,24 @@ public sealed class WindowsProcessTarget : IApprovedMemoryTarget, IStreamingMemo
 
     internal static bool TryFindUniqueModule(IEnumerable<TargetModule> modules, string moduleName, out TargetModule? module)
     {
-        var matches = modules.Where(item => StringComparer.OrdinalIgnoreCase.Equals(item.Name, moduleName)).Take(2).ToArray();
+        var matches = CollapseIdenticalModuleEntries(modules.Where(item => StringComparer.OrdinalIgnoreCase.Equals(item.Name, moduleName))).Take(2).ToArray();
         module = matches.Length == 1 ? matches[0] : null;
         return module is not null;
+    }
+
+    private static IEnumerable<TargetModule> CollapseIdenticalModuleEntries(IEnumerable<TargetModule> modules)
+    {
+        var seen = new HashSet<(string Name, long BaseAddress, long Size, string Path)>();
+        foreach (var module in modules)
+        {
+            // WOW64 snapshots can contain the same record from both snapshot
+            // flags. Only identical known paths, bases and sizes are duplicate
+            // records; genuinely different same-name DLLs remain ambiguous.
+            if (string.IsNullOrWhiteSpace(module.Path) || seen.Add((module.Name.ToUpperInvariant(), module.BaseAddress, module.Size, module.Path.ToUpperInvariant())))
+            {
+                yield return module;
+            }
+        }
     }
 
     public bool TryFindModule(long address, out TargetModule? module)
@@ -340,7 +363,8 @@ public sealed class WindowsProcessTarget : IApprovedMemoryTarget, IStreamingMemo
                     throw new InvalidOperationException("Målprocessen er afsluttet.");
                 }
 
-                _modules = modules.OrderBy(item => item.BaseAddress).ToArray();
+                _modules = CollapseIdenticalModuleEntries(modules).OrderBy(item => item.BaseAddress).ToArray();
+                LastModuleError = null;
             }
             finally
             {
