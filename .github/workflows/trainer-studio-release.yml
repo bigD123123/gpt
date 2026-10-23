@@ -38,6 +38,27 @@ jobs:
           .\trainer-studio\tests\TrainerStudio.Theme.Tests\TrainerStudio.Theme.Tests.csproj
           -c Release -- .\release\theme-tests
 
+      - name: Run streaming scanner tests
+        run: dotnet run --project .\trainer-studio\tests\TrainerStudio.Scanner.Tests\TrainerStudio.Scanner.Tests.csproj -c Release
+
+      - name: Run stable reference and pointer tests
+        run: dotnet run --project .\trainer-studio\tests\TrainerStudio.Reference.Tests\TrainerStudio.Reference.Tests.csproj -c Release
+
+      - name: Verify real x64 process access
+        run: dotnet run --project .\trainer-studio\tests\TrainerStudio.Windows.Tests\TrainerStudio.Windows.Tests.csproj -c Release
+
+      - name: Build ordinary x86 memory fixture
+        run: >
+          dotnet publish .\trainer-studio\tests\TrainerStudio.Windows.Tests\TrainerStudio.Windows.Tests.csproj
+          -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true
+          -p:DebugType=None -p:DebugSymbols=false -o .\release\x86-fixture
+
+      - name: Verify x64 access to x86 process
+        shell: pwsh
+        run: |
+          $env:TRAINER_STUDIO_FIXTURE_EXE = (Resolve-Path .\release\x86-fixture\TrainerStudio.Windows.Tests.exe).Path
+          dotnet run --project .\trainer-studio\tests\TrainerStudio.Windows.Tests\TrainerStudio.Windows.Tests.csproj -c Release
+
       - name: Upload Windows theme screenshots
         if: always()
         uses: actions/upload-artifact@v4

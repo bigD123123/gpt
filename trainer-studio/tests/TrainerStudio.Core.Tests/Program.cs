@@ -351,6 +351,10 @@ static void SliderAndTypedArithmetic()
     var increment = ScanValue.Parse(ScanDataType.UInt64, "1");
     Equal("18000000000000000001", ValueCodec.Add(high, increment).Display);
     True(ValueCodec.TryCompare(ValueCodec.Add(high, increment), high, out var comparison) && comparison > 0);
+    True(ValueCodec.IsAlignedToStep(ScanValue.Parse(ScanDataType.Float, "0.3"),
+        ScanValue.Parse(ScanDataType.Float, "0"), ScanValue.Parse(ScanDataType.Float, "0.1")));
+    True(!ValueCodec.IsAlignedToStep(ScanValue.Parse(ScanDataType.Float, "0.35"),
+        ScanValue.Parse(ScanDataType.Float, "0"), ScanValue.Parse(ScanDataType.Float, "0.1")));
 }
 
 static void AuditLogRoundTrip()

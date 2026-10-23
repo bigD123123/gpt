@@ -18,6 +18,16 @@ try {
     dotnet run --project $testProject -c Release
     if ($LASTEXITCODE -ne 0) { throw 'Kernetestene fejlede. Udgaven bliver ikke publiceret.' }
 
+    Write-Host 'Tester streaming-scanner og stabile referencer ...'
+    dotnet run --project .\tests\TrainerStudio.Scanner.Tests\TrainerStudio.Scanner.Tests.csproj -c Release
+    if ($LASTEXITCODE -ne 0) { throw 'Scanner-testene fejlede.' }
+    dotnet run --project .\tests\TrainerStudio.Reference.Tests\TrainerStudio.Reference.Tests.csproj -c Release
+    if ($LASTEXITCODE -ne 0) { throw 'Reference-testene fejlede.' }
+
+    Write-Host 'Tester reel adgang til en almindelig testproces ...'
+    dotnet run --project .\tests\TrainerStudio.Windows.Tests\TrainerStudio.Windows.Tests.csproj -c Release
+    if ($LASTEXITCODE -ne 0) { throw 'Windows-procestestene fejlede.' }
+
     Write-Host 'Kontrollerer mørkt tema på Windows ...'
     dotnet run --project $themeTestProject -c Release -- $themeTestOutput
     if ($LASTEXITCODE -ne 0) { throw 'Windows-tematestene fejlede. Se billederne i artifacts\theme-tests.' }

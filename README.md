@@ -1,20 +1,22 @@
-# AI Automation Lab
+# Trainer Studio
+
+Det aktuelle projekt er **Trainer Studio v0.3**, en AI-fri Windows-app med
+procestilknytning, hukommelsessøgning, pointerstier, Trainer Builder og gemte
+profiler. Se [Trainer Studio-vejledningen](trainer-studio/README.md) for
+installation, funktioner og den tydelige skelnen mellem automatiserede tests
+og senere afprøvning i rigtige spil.
+
+Windows-pakker ligger under [GitHub Releases](https://github.com/bigD123123/gpt/releases).
+Trainer Studio bygges fra mappen `trainer-studio`; det bruger ikke Python,
+AI-modeller eller API-nøgler.
+
+## Tidligere projekt: AI Automation Lab
 
 En Windows-app med dansk brugerflade, som genskaber det centrale forløb fra **How I Created an AI That Can Hack Any Game** i et testmiljø, vi selv kontrollerer:
 
 **Skærmbillede → AI-aflæsning → første søgning → tilladt handling → nyt billede → indsnævring → godkendt ændring → kontrol.**
 
 Appen åbner sit eget lille testspil med valuta og ammunition. Søgningen arbejder på testspillets registrerede hukommelsesbuffer med rigtige adresser. Det mørke logvindue viser AI'ens aflæsninger, handlinger, kandidater og resultater. En direkte ændring kræver din godkendelse.
-
-## Separat, AI-fri Trainer Studio-prototype
-
-Der ligger nu også et selvstændigt C#/.NET-projekt i
-[trainer-studio](trainer-studio/README.md). Det er den påbegyndte moderne
-Trainer Builder til et selvudviklet testmål: værdisøgning, knap/kontakt/slider/
-talindtastning, gemte JSON-profiler, modulrelative referencer, validering og
-lokal auditlog. Den tilknytter sig ikke eksterne processer i v0.1. Se
-[research og roadmap](trainer-studio/RESEARCH.md) for afgrænsning,
-licensresearch og den prioriterede videre plan.
 
 Videoen er undersøgt ud fra dine uploadede undertekster og skærmbilleder. De viser blandt andet OpenAI `gpt-5-nano`, AutoHotkey og hukommelsessøgning. Vores udgave bruger dokumenterede handlinger i sit eget testprogram i stedet for at generere AutoHotkey-kode eller tilslutte sig vilkårlige spilprocesser. Se [gennemgangen af videoen](docs/undersoegelse.md) og [den nye apps opbygning og afgrænsning](docs/replica.md).
 

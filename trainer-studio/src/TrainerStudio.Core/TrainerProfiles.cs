@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Buffers.Binary;
 
 namespace TrainerStudio.Core;
 
@@ -27,24 +28,142 @@ public enum ProfileValidationState
     NotAttached
 }
 
+public enum MemoryReferenceKind
+{
+    ModuleRelative,
+    PointerPath,
+    SessionAddress
+}
+
+/// <summary>Optional identity for a loaded root module, including DLL roots.</summary>
+public interface IModuleFingerprintTarget
+{
+    bool TryGetModuleFingerprint(string moduleName, out string fingerprint);
+}
+
 public sealed record MemoryReference(
     string TargetId,
     string ModuleName,
     long Offset,
     ScanDataType DataType,
-    string ExpectedValueHint)
+    string ExpectedValueHint,
+    MemoryReferenceKind Kind = MemoryReferenceKind.ModuleRelative,
+    IReadOnlyList<long>? PointerOffsets = null,
+    int PointerSize = 0,
+    string? SessionId = null,
+    long? SessionAddress = null,
+    string? ExpectedBuildFingerprint = null,
+    string? ExpectedVersion = null,
+    string? ExpectedModuleFingerprint = null)
 {
-    public long Resolve(IApprovedMemoryTarget target)
+    public bool IsPersistent => Kind != MemoryReferenceKind.SessionAddress;
+
+    public string Description => Kind switch
+    {
+        MemoryReferenceKind.SessionAddress => $"Kun denne processtart · 0x{SessionAddress:X}",
+        MemoryReferenceKind.PointerPath => $"{ModuleName}+0x{Offset:X} → {string.Join(" → ", PointerOffsets ?? [])}",
+        _ => $"{ModuleName}+0x{Offset:X}"
+    };
+
+    public void ValidateDefinition()
+    {
+        if (!Enum.IsDefined(Kind) || !Enum.IsDefined(DataType) || string.IsNullOrWhiteSpace(TargetId))
+        {
+            throw new ArgumentException("Hukommelsesreferencens type eller mål er ugyldigt.");
+        }
+
+        if ((ExpectedBuildFingerprint is not null && string.IsNullOrWhiteSpace(ExpectedBuildFingerprint)) ||
+            (ExpectedVersion is not null && string.IsNullOrWhiteSpace(ExpectedVersion)) ||
+            (ExpectedModuleFingerprint is not null && string.IsNullOrWhiteSpace(ExpectedModuleFingerprint)))
+        {
+            throw new ArgumentException("Versions- og buildoplysninger må ikke være tomme strenge.");
+        }
+
+        if (Kind == MemoryReferenceKind.SessionAddress)
+        {
+            if (string.IsNullOrWhiteSpace(SessionId) || SessionAddress is null or <= 0)
+            {
+                throw new ArgumentException("En sessionsadresse kræver processtart-id og en gyldig adresse.");
+            }
+
+            if (PointerOffsets is { Count: > 0 } || PointerSize != 0)
+            {
+                throw new ArgumentException("En sessionsadresse må ikke indeholde en pointersti.");
+            }
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(ModuleName) || Offset < 0)
+        {
+            throw new ArgumentException("En modulreference kræver et modulnavn og et positivt relativt offset.");
+        }
+
+        if (Kind == MemoryReferenceKind.PointerPath)
+        {
+            if (PointerSize is not (4 or 8) || PointerOffsets is not { Count: >= 1 and <= 8 })
+            {
+                throw new ArgumentException("En pointersti kræver 4- eller 8-byte pointere og mellem ét og otte led.");
+            }
+
+            if (PointerOffsets.Any(offset => offset is < -0x1000_0000L or > 0x1000_0000L))
+            {
+                throw new ArgumentException("Pointeroffset er uden for den understøttede grænse på ±256 MiB.");
+            }
+        }
+        else if (PointerOffsets is { Count: > 0 } || PointerSize != 0)
+        {
+            throw new ArgumentException("En direkte modulreference må ikke indeholde pointerled.");
+        }
+
+        if (SessionId is not null || SessionAddress is not null)
+        {
+            throw new ArgumentException("En modul- eller pointerreference må ikke samtidig være en sessionsadresse.");
+        }
+    }
+
+    public long Resolve(IApprovedMemoryTarget target, bool enforceBuild = true)
     {
         ArgumentNullException.ThrowIfNull(target);
+        ValidateDefinition();
         if (!StringComparer.Ordinal.Equals(TargetId, target.Identity.TargetId))
         {
             throw new InvalidOperationException("Profilen hører til et andet godkendt mål.");
         }
 
-        if (!StringComparer.Ordinal.Equals(ModuleName, target.Identity.ModuleName))
+        if (target is ISessionMemoryTarget { IsAlive: false })
         {
-            throw new InvalidOperationException("Profilen hører til et andet modul.");
+            throw new InvalidOperationException("Målprocessen er afsluttet. Tilknyt den nye processtart igen.");
+        }
+
+        if (enforceBuild &&
+            ((!string.IsNullOrWhiteSpace(ExpectedBuildFingerprint) && !StringComparer.Ordinal.Equals(ExpectedBuildFingerprint, target.Identity.BuildFingerprint)) ||
+             (!string.IsNullOrWhiteSpace(ExpectedVersion) && !StringComparer.Ordinal.Equals(ExpectedVersion, target.Identity.Version))))
+        {
+            throw new InvalidOperationException("Spillets version eller build er ændret. Genfind og godkend referencen før en ny ændring.");
+        }
+
+        if (Kind == MemoryReferenceKind.SessionAddress)
+        {
+            if (target is not ISessionMemoryTarget session || !StringComparer.Ordinal.Equals(SessionId, session.SessionId))
+            {
+                throw new InvalidOperationException("Denne adresse gælder kun den tidligere processtart. Genfind værdien eller brug en valideret pointersti.");
+            }
+
+            return SessionAddress!.Value;
+        }
+
+        if (enforceBuild && target is IModuleFingerprintTarget && string.IsNullOrWhiteSpace(ExpectedModuleFingerprint))
+        {
+            throw new InvalidOperationException($"Referencen mangler et gemt build-fingeraftryk for rodmodulet '{ModuleName}'. Genfind og godkend referencen før ændring.");
+        }
+
+        if (enforceBuild && !string.IsNullOrWhiteSpace(ExpectedModuleFingerprint) &&
+            (target is not IModuleFingerprintTarget moduleIdentity ||
+             !moduleIdentity.TryGetModuleFingerprint(ModuleName, out var moduleFingerprint) ||
+             !StringComparer.Ordinal.Equals(ExpectedModuleFingerprint, moduleFingerprint)))
+        {
+            throw new InvalidOperationException($"Rodmodulet '{ModuleName}' har ændret build eller kan ikke verificeres. Genfind og godkend referencen før ændring.");
         }
 
         if (!target.TryResolveModuleBase(ModuleName, out var moduleBase))
@@ -52,7 +171,52 @@ public sealed record MemoryReference(
             throw new InvalidOperationException("Modulet kan ikke opløses i det valgte mål.");
         }
 
-        return checked(moduleBase + Offset);
+        var address = checked(moduleBase + Offset);
+        if (target is IModuleMemoryTarget modules)
+        {
+            var module = modules.Modules.FirstOrDefault(module => StringComparer.OrdinalIgnoreCase.Equals(module.Name, ModuleName));
+            var width = Kind == MemoryReferenceKind.PointerPath ? PointerSize : ValueCodec.SizeOf(DataType);
+            if (module is null || address < module.BaseAddress || address > checked(module.BaseAddress + module.Size - width))
+            {
+                throw new InvalidOperationException("Det gemte moduloffset ligger ikke længere inde i modulet.");
+            }
+        }
+
+        if (Kind != MemoryReferenceKind.PointerPath)
+        {
+            return address;
+        }
+
+        if ((target.Identity.Architecture == "x86" && PointerSize != 4) ||
+            (target.Identity.Architecture == "x64" && PointerSize != 8))
+        {
+            throw new InvalidOperationException("Pointerbredden passer ikke til målprocessens arkitektur.");
+        }
+
+        foreach (var offset in PointerOffsets!)
+        {
+            var pointerType = PointerSize == 4 ? ScanDataType.UInt32 : ScanDataType.UInt64;
+            if (!target.TryRead(address, pointerType, out var pointer) || pointer.Bytes is null || pointer.Bytes.Length != PointerSize)
+            {
+                throw new InvalidOperationException("Et led i pointerstien kan ikke læses.");
+            }
+
+            var pointerValue = PointerSize == 4
+                ? BinaryPrimitives.ReadUInt32LittleEndian(pointer.Bytes)
+                : BinaryPrimitives.ReadUInt64LittleEndian(pointer.Bytes);
+            if (pointerValue == 0 || pointerValue > long.MaxValue)
+            {
+                throw new InvalidOperationException("Pointerstien indeholder en tom eller ugyldig pointer.");
+            }
+
+            address = checked((long)pointerValue + offset);
+            if (address <= 0)
+            {
+                throw new InvalidOperationException("Pointerstien opløses til en ugyldig adresse.");
+            }
+        }
+
+        return address;
     }
 }
 
@@ -128,21 +292,75 @@ public static class TrainerBuilder
             throw new ArgumentException("Funktionen skal have et navn.", nameof(name));
         }
 
-        if (!target.TryResolveModuleBase(target.Identity.ModuleName, out var moduleBase) || hit.Address < moduleBase ||
-            !target.TryRead(hit.Address, hit.CurrentValue.Type, out _))
+        if (!target.TryRead(hit.Address, hit.CurrentValue.Type, out _))
         {
-            throw new ArgumentOutOfRangeException(nameof(hit), "Adressen er ikke en stabil reference i testmålet.");
+            throw new ArgumentOutOfRangeException(nameof(hit), "Adressen kan ikke læses i det valgte mål.");
+        }
+
+        MemoryReference reference;
+        var module = (target as IModuleMemoryTarget)?.Modules.FirstOrDefault(module =>
+            hit.Address >= module.BaseAddress && hit.Address <= checked(module.BaseAddress + module.Size - hit.CurrentValue.Size));
+        if (module is not null)
+        {
+            reference = new MemoryReference(target.Identity.TargetId, module.Name, checked(hit.Address - module.BaseAddress), hit.CurrentValue.Type, hit.CurrentValue.Display);
+        }
+        else if (target is OwnedTestTarget owned && hit.Address >= owned.ModuleBaseAddress)
+        {
+            reference = new MemoryReference(target.Identity.TargetId, target.Identity.ModuleName, checked(hit.Address - owned.ModuleBaseAddress), hit.CurrentValue.Type, hit.CurrentValue.Display);
+        }
+        else if (target is ISessionMemoryTarget session)
+        {
+            reference = new MemoryReference(target.Identity.TargetId, target.Identity.ModuleName, 0, hit.CurrentValue.Type, hit.CurrentValue.Display,
+                Kind: MemoryReferenceKind.SessionAddress, SessionId: session.SessionId, SessionAddress: hit.Address);
+        }
+        else
+        {
+            throw new InvalidOperationException("Målet oplyser hverken modulgrænser eller en entydig processession. Referencen kan ikke gemmes forsvarligt.");
+        }
+
+        return CreateFromReference(reference, target, name, operation, control, value, category, description, hotkey, minimum, maximum, step);
+    }
+
+    public static TrainerFeature CreateFromReference(
+        MemoryReference reference,
+        IApprovedMemoryTarget target,
+        string name,
+        TrainerOperation operation,
+        TrainerControlKind control,
+        string value,
+        string category = "Generelt",
+        string description = "",
+        string? hotkey = null,
+        string? minimum = null,
+        string? maximum = null,
+        string? step = null)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var expectedModuleFingerprint = reference.ExpectedModuleFingerprint;
+        if (reference.Kind != MemoryReferenceKind.SessionAddress && target is IModuleFingerprintTarget moduleIdentity)
+        {
+            if (!moduleIdentity.TryGetModuleFingerprint(reference.ModuleName, out expectedModuleFingerprint))
+            {
+                throw new InvalidOperationException($"Rodmodulet '{reference.ModuleName}' kan ikke verificeres. Funktionen blev ikke oprettet.");
+            }
+        }
+
+        reference = reference with
+        {
+            ExpectedBuildFingerprint = target.Identity.BuildFingerprint,
+            ExpectedVersion = target.Identity.Version,
+            ExpectedModuleFingerprint = expectedModuleFingerprint
+        };
+        var address = reference.Resolve(target);
+        if (!target.TryRead(address, reference.DataType, out _))
+        {
+            throw new ArgumentException("Den valgte reference kan ikke læses i målet.");
         }
 
         ValidateControlOperation(control, operation);
         var normalizedValue = (value ?? string.Empty).Trim();
-
-        var reference = new MemoryReference(
-            target.Identity.TargetId,
-            target.Identity.ModuleName,
-            checked(hit.Address - moduleBase),
-            hit.CurrentValue.Type,
-            hit.CurrentValue.Display);
         var feature = new TrainerFeature(
             Guid.NewGuid(),
             name.Trim(),
@@ -178,6 +396,13 @@ public static class TrainerBuilder
         var minimum = ScanValue.Parse(feature.Reference.DataType, feature.Minimum ?? throw new ArgumentException("Slider kræver minimum."));
         var maximum = ScanValue.Parse(feature.Reference.DataType, feature.Maximum ?? throw new ArgumentException("Slider kræver maksimum."));
         var step = ScanValue.Parse(feature.Reference.DataType, feature.Step ?? throw new ArgumentException("Slider kræver trin."));
+        if (feature.Reference.DataType is ScanDataType.Int64 or ScanDataType.UInt64)
+        {
+            const decimal maxExactSliderInteger = 9_007_199_254_740_992m;
+            if (Math.Abs(decimal.Parse(minimum.Display, System.Globalization.CultureInfo.InvariantCulture)) > maxExactSliderInteger ||
+                Math.Abs(decimal.Parse(maximum.Display, System.Globalization.CultureInfo.InvariantCulture)) > maxExactSliderInteger)
+                throw new ArgumentException("Dette heltalsinterval kan ikke vises præcist på en slider. Brug talindtastning til store 64-bit-værdier.");
+        }
         var zero = ScanValue.Parse(feature.Reference.DataType, "0");
         if (!ValueCodec.TryCompare(minimum, maximum, out var rangeComparison) || rangeComparison > 0)
         {
@@ -262,7 +487,7 @@ public static class ProfileValidator
             repairMessages.Add("Målets arkitektur passer ikke til profilen.");
         }
 
-        if (!StringComparer.Ordinal.Equals(profile.Target.ModuleName, target.Identity.ModuleName))
+        if (!StringComparer.OrdinalIgnoreCase.Equals(profile.Target.ModuleName, target.Identity.ModuleName))
         {
             repairMessages.Add("Profilens hovedmodul passer ikke til målet.");
         }
@@ -281,13 +506,30 @@ public static class ProfileValidator
         {
             try
             {
-                var address = feature.Reference.Resolve(target);
+                if (feature.Reference.IsPersistent && target is IModuleFingerprintTarget &&
+                    string.IsNullOrWhiteSpace(feature.Reference.ExpectedModuleFingerprint))
+                {
+                    reviewMessages.Add($"{feature.Name}: der mangler et gemt build-fingeraftryk for rodmodulet '{feature.Reference.ModuleName}'. Genfind og godkend referencen.");
+                }
+
+                if (feature.Reference.Kind != MemoryReferenceKind.SessionAddress &&
+                    !string.IsNullOrWhiteSpace(feature.Reference.ExpectedModuleFingerprint) &&
+                    (target is not IModuleFingerprintTarget moduleIdentity ||
+                     !moduleIdentity.TryGetModuleFingerprint(feature.Reference.ModuleName, out var fingerprint) ||
+                     !StringComparer.Ordinal.Equals(feature.Reference.ExpectedModuleFingerprint, fingerprint)))
+                {
+                    reviewMessages.Add($"{feature.Name}: rodmodulet '{feature.Reference.ModuleName}' har ændret build eller kan ikke verificeres.");
+                }
+
+                // Version differences remain a visible review state, while
+                // runtime writes enforce the saved fingerprint/version.
+                var address = feature.Reference.Resolve(target, enforceBuild: false);
                 if (!target.TryRead(address, feature.Reference.DataType, out _))
                 {
                     repairMessages.Add($"{feature.Name}: den gemte reference kan ikke læses.");
                 }
             }
-            catch (Exception exception) when (exception is InvalidOperationException or OverflowException)
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or OverflowException)
             {
                 repairMessages.Add($"{feature.Name}: {exception.Message}");
             }
@@ -306,7 +548,9 @@ public static class ProfileValidator
 
 public sealed class ProfileStore
 {
-    public const int SupportedSchemaVersion = 2;
+    // Version 3 prevents an older app from treating a pointer/session record
+    // as a plain module offset. Version 2 files are migrated when loaded.
+    public const int SupportedSchemaVersion = 3;
     public const long MaximumImportBytes = 2 * 1024 * 1024;
     public const int BackupRetentionCount = 10;
 
@@ -458,6 +702,7 @@ public sealed class ProfileStore
                 throw new InvalidDataException("Profilfilen indeholder ikke en gyldig trainerprofil.");
             }
 
+            profile = UpgradeProfile(profile);
             ValidateProfile(profile, InvalidProfileExceptionKind.Load);
             return profile;
         }
@@ -489,6 +734,27 @@ public sealed class ProfileStore
                 File.Delete(temporary);
             }
         }
+    }
+
+    private static TrainerProfile UpgradeProfile(TrainerProfile profile)
+    {
+        if (profile.SchemaVersion is not (2 or SupportedSchemaVersion) || profile.Target is null || profile.Features is null)
+        {
+            return profile;
+        }
+
+        return profile with
+        {
+            SchemaVersion = SupportedSchemaVersion,
+            Features = profile.Features.Select(feature => feature is null || feature.Reference is null ? feature! : feature with
+            {
+                Reference = feature.Reference with
+                {
+                    ExpectedBuildFingerprint = feature.Reference.ExpectedBuildFingerprint ?? profile.Target.BuildFingerprint,
+                    ExpectedVersion = feature.Reference.ExpectedVersion ?? profile.Target.Version
+                }
+            }).ToArray()
+        };
     }
 
     private static void EnsureProfileExtension(string path, string message)
@@ -567,6 +833,12 @@ public sealed class ProfileStore
 
             try
             {
+                feature.Reference.ValidateDefinition();
+                if (!StringComparer.Ordinal.Equals(feature.Reference.TargetId, profile.Target!.TargetId))
+                {
+                    ThrowInvalidProfile(exceptionKind, $"Funktionen '{feature.Name}' hører til et andet mål end profilen.");
+                }
+
                 TrainerBuilder.ValidateControlOperation(feature.Control, feature.Operation);
                 TrainerBuilder.ValidateRequestedValue(feature, featureValue, allowRestoreWithoutValue: true);
             }

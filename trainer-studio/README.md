@@ -1,133 +1,179 @@
 # Trainer Studio
 
-Trainer Studio er en separat, AI-fri Windows-prototype for den almindelige
-arbejdsgang **find værdi → indsnævr → opret funktion → gem profil**. Den er
-skrevet helt fra bunden i C#/.NET og WPF; den genbruger ikke kode fra Cheat
-Engine, x64dbg, WeMod, ArtMoney eller ReClass.NET.
+**Version 0.3.0** er en Windows-app under udvikling til arbejdsgangen
+**vælg proces → find værdi → opret funktion → gem profil → genbrug trainer**.
+Appen er skrevet fra bunden i C#/.NET og WPF og indeholder ingen AI.
 
-Den nuværende version arbejder **kun** med sit indbyggede, selvudviklede
-testmål. Knappen **Åbn testspil** viser målet i sit eget WPF-vindue, men det
-forbliver bevidst i samme proces som Trainer Studio. Den åbner ikke vilkårlige
-processer, tager ikke et proces-id eller en adresse som input og indeholder ikke
-anti-cheat-omgåelse, kodeinjektion, speedhack, online-funktioner eller AI.
+Standardvinduet arbejder nu med en Windows-proces, som du selv vælger.
+Du behøver ikke hente dine spil for at fortsætte udviklingen: funktionerne
+bygges og kontrolleres med automatiserede tests nu, mens kompatibiliteten med
+dine Unity-, Unreal- og ældre spil først kan bekræftes ved senere spiltest.
+Der er ikke udviklet et nyt testspil. Den gamle indbyggede testmodel findes
+fortsat i kildekoden og de oprindelige kernetests, men er ikke appens normale
+startvindue.
 
-Læs [research og roadmap](RESEARCH.md) for kildegrundlag, licenser,
-produktvalg og de funktioner, der bevidst er senere arbejde.
+Programmet er beregnet til lokale singleplayer-programmer, som du ejer eller
+har tilladelse til at undersøge. Det indeholder ikke omgåelse af anti-cheat
+eller antivirus, kodeinjektion, drivere eller ændring af serverstyrede værdier.
+Det genbruger ikke kode fra Cheat Engine, x64dbg, WeMod, ArtMoney eller ReClass.
 
-Version **0.2.1** retter kontrasten i lukkede og åbne rullemenuer,
-deaktiverede knapper, tabeloverskrifter, resultatrækker og scrollbars.
-Versionsnummeret vises i hovedvinduets titellinje.
+Læs [ændringslisten](CHANGELOG.md), [proces- og spilmotorvejledningen](docs/PROCESS_SUPPORT.md)
+og [research/roadmap](RESEARCH.md) for flere detaljer.
 
-## Hvad v0.2 kan
+## Start på Windows
 
-- Søge i det ejede testmåls data med `Exact`, `Unknown`, `Increased`,
-  `Decreased`, `Changed` og `Unchanged`.
-- Arbejde med signed/unsigned heltal, float, double og boolske værdier.
-- Oprette deklarative trainerfunktioner som knap, kontakt, slider eller
-  talindtastning.
-- Udføre `Indstil`, `Tilføj`, `Fasthold` og sessionbaseret `Gendan oprindelig`.
-  En ændring kræver en tydelig bekræftelse.
-- Gemme og indlæse versionerede JSON-profiler med modulrelative offsets.
-- Åbne **Min trainer**: et kompakt vindue med kategorier og direkte knapper,
-  kontakter, sliders og talfelter for de funktioner, brugeren selv har oprettet.
-- Kopiere, flytte og fjerne funktioner i traineren. Rækkefølgen og kategorierne
-  gemmes i profilen.
-- Duplikere en profil, eksportere den til en flytbar
-  `.trainerprofile.json`-fil og importere den som en ny, selvstændig lokal kopi.
-  Importerede profiler og funktioner får nye id'er, så en import aldrig
-  overskriver en eksisterende trainer.
-- Oprette op til ti automatiske sikkerhedskopier af den forrige version, hver
-  gang en eksisterende profil gemmes igen.
-- Validere mål-id, arkitektur, version, build-fingeraftryk og læsbarhed, før en
-  profil beskrives som klar.
-- Skrive lokale auditposter for testhandlinger, scanninger, funktioner,
-  profiler og fejl.
-- Simulere genstart med en ny modulbase i kernetestene; den gemte
-  modulrelative reference bliver opløst på ny.
+- Windows 10/11, 64-bit. Appen bygges som x64 og har kode til både x86- og
+  x64-målprocesser. Faktisk spilkompatibilitet skal afprøves separat.
+- Den publicerede `TrainerStudio.exe` er selvstændig; du behøver ikke installere
+  .NET for at bruge udgivelsespakken.
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) er kun
+  nødvendigt, hvis du vil bygge fra kildekoden.
 
-Det indbyggede testmål accepterer i denne version kun **Int32** som skrivbar
-trainerreference. De øvrige datatyper er med i scanmotoren og dens tests, men
-en valgt kandidat med en anden type kan ikke gøres til en skrivende funktion i
-v0.2.
+Luk den gamle app, pak den nye ZIP ud i en ny mappe, og start
+**TrainerStudio.exe**. Titlen skal vise **Trainer Studio v0.3.0**.
+Din Ryzen 7 3800X og 16 GB RAM er tilstrækkelig til appen. GPU og API-nøgle er
+ikke nødvendige. Store processer kan kræve flere afgrænsede søgninger.
 
-## Hvad v0.2 ikke kan endnu
+## Første søgning i et spil, når det er tilgængeligt
 
-- Tilknytte sig eksterne spil eller andre processer.
-- Lave pointer scanning, kodepatching, debugging eller strukturinspektion.
-- Importere Cheat Engine-tabeller eller eksportere en selvstændig trainer.
-- Tilbyde globale hotkeys, drag-and-drop, ikoner eller fuld dansk/engelsk
-  sprogskift. En indtastet genvej gemmes som profilmetadata til senere arbejde.
-- Bevise integration mod en separat Windows-testproces. Det indbyggede testmål
-  er bevidst i proces, så scannerens og profilernes regler kan testes sikkert.
+1. Start spillet. Vælg det i proceslisten, og tryk **Forbind (kun læsning)**.
+   Vælg spillets faktiske program frem for en launcher. Appen viser den valgte
+   proces og åbner først kun med læseadgang.
+2. Åbn fanen **Søg og opret funktion**. Vælg en passende datatype, fx
+   **Int32** for et heltal eller **Float** for et decimaltal. Det er et valg,
+   der skal afprøves; spilmotoren bestemmer ikke automatisk den rigtige type.
+3. Hvis du kender tallet, vælg **Præcis værdi**, skriv tallet, og tryk
+   **Første søgning**. Ellers vælg **Ukendt startværdi**.
+4. Ændr tallet i spillet, fx ved at bruge lidt ammunition. Vælg derefter
+   **Præcis værdi**, **Steget**, **Faldet**, **Ændret** eller **Uændret**, og
+   tryk **Næste søgning**. Gentag efter behov.
+5. Vælg en kandidat, og brug **Læs valgt igen** til at kontrollere den aktuelle
+   værdi. Et læsbart tal er ikke bevis på, at det styrer det ønskede i spillet.
+6. Giv funktionen et navn i Builder. Vælg kontrol og handling, og tryk
+   **Opret fra valgt værdi / pointersti**. Gå til **Min trainer og profiler**
+   og åbn **Åbn min trainer**.
+7. Når du vil afprøve ændringen, slå **Tillad værdiændringer i det valgte
+   program** til. Brug funktionen, kontrollér proces, adresse, datatype og
+   værdi i bekræftelsen, og afprøv resultatet i spillet. Gem derefter profilen.
 
-## Krav på Windows
+Du kan annullere en søgning med **Annullér søgning**. Den forrige færdige
+søgesession bevares ved annullering. **Ryd søgning** starter bevidst forfra.
 
-- Windows 10 eller 11, 64-bit.
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0), hvis du vil
-  bygge fra kildekoden.
+## Hvor meget bliver undersøgt?
 
-Din Ryzen 7 3800X og 16 GB RAM er rigeligt til denne prototype. Den bruger ikke
-AI eller GPU.
+Værdisøgningen læser i blokke og kører i baggrunden, så vinduet forbliver
+responsivt. Der er følgende synlige grænser:
 
-## Kør fra kildekoden
+- Standardbudget: **256 MiB** læst hukommelse. Feltet accepterer 1–2.048 MiB.
+- Kandidatgrænse: **100.000**. Tabellen viser højst **2.000** af kandidaterne;
+  næste søgning arbejder fortsat på den gemte kandidatgruppe.
+- **Kun skrivbare dataområder** er slået til som standard. Det kræver ikke
+  skriveadgang; det filtrerer kun, hvilke områder der læses.
+- **Medtag mapped områder** er slået fra som standard. Du kan slå det til,
+  hvis søgningen også skal omfatte læsbare områder med memory-mapped data.
+  Det øvrige læsebudget og filteret for skrivbare områder gælder fortsat.
+- Du kan angive start- og slutadresse som hexadecimale tal. Slutadressen er
+  eksklusiv. Tomme felter bruger målprocessens adresseområde.
+- **Ujusterede værdier** undersøger hver byte i stedet for naturligt justerede
+  adresser og kan derfor tage længere tid.
 
-Åbn PowerShell i mappen `trainer-studio` og kør:
+En meddelelse om **AFGRÆNSET SØGNING** betyder, at kandidat-, læse- eller
+arbejdsbudgettet blev nået. En enkelt tilbageværende kandidat er da kun
+entydig inden for den undersøgte del. Et tomt resultat beviser heller ikke,
+at værdien mangler i resten af processen. Ulæselige blokke rapporteres.
 
-```powershell
-dotnet run --project .\tests\TrainerStudio.Core.Tests\TrainerStudio.Core.Tests.csproj -c Release
-dotnet run --project .\tests\TrainerStudio.Theme.Tests\TrainerStudio.Theme.Tests.csproj -c Release -- .\artifacts\theme-tests
-dotnet run --project .\src\TrainerStudio.App\TrainerStudio.App.csproj -c Release
-```
+Spillet kører videre under læsningen. En blokvis søgning er derfor ikke et
+låst øjebliksbillede af hele processen; værdier kan ændre sig, mens søgningen
+arbejder. Gentagne observationer og en afprøvet ændring i spillet er stadig
+nødvendige.
 
-Den første kommando skal slutte med `PASS: 16 Trainer Studio core tests`.
-Den anden kontrollerer de faktisk renderede WPF-farver på Windows og gemmer
-PNG-billeder i `artifacts\theme-tests`. Den tredje starter WPF-appen.
+## Opret og organisér din trainer
 
-## Prøv programmet
+| Kontrol | Brug |
+|---|---|
+| Knap | Indstil, tilføj eller gendan en værdi én gang. |
+| Kontakt | Fasthold en værdi, indtil den deaktiveres eller stoppes. |
+| Slider | Indstil en værdi inden for gemt minimum, maksimum og trin. |
+| Talindtastning | Indstil eller tilføj det tal, du skriver ved anvendelsen. |
 
-Følgende forløb finder testmålets valuta uden at gætte:
+Navn, kategori, beskrivelse, værdi og eventuel genvej gemmes i profilen.
+**Redigér valgt** indlæser en eksisterende funktion i Builder; brug
+**Opdatér valgt trainerfunktion** til at gemme rettelsen i den aktuelle profil.
+Du kan også kopiere, flytte og slette funktioner. Profilen skal gemmes for at
+bevare ændringerne på disken.
 
-1. Lad datatype stå på **Int32**, sammenligning på **Præcis værdi** og værdi på
-   **50**. Tryk **Første søgning**. Der er med vilje flere kandidater.
-   Du kan trykke **Åbn testspil** for at udføre handlingerne i et separat
-   testvindue i stedet for i venstre panel.
-2. Tryk **Saml +25** i venstre side.
-3. Skriv **75** og tryk **Næste søgning**.
-4. Tryk **Saml +25** igen, skriv **100**, og tryk **Næste søgning**. Nu er der
-   én kandidat.
-5. I Trainer Builder vælger du fx **Knap**, **Indstil værdi**, giver funktionen
-   et navn og skriver `999`. Tryk **Opret funktion fra eneste kandidat**.
-6. Tryk **Åbn min trainer**, find funktionen i dens kategori, tryk **Udfør** og
-   godkend dialogen. Valutaen bliver synligt opdateret. Den gamle boks
-   **Udfør valgt** virker fortsat, hvis du hellere vil teste fra editoren.
-7. Tryk **Gem profil**. Luk og åbn appen igen, vælg profilen under **Gemte
-   profiler**, tryk **Indlæs valgt** og derefter **Valider profil**.
+Hvis en reference er ugyldig, kan den repareres uden at miste navnet og
+kategorien: vælg **Redigér valgt**, find værdien på ny, vælg det nye fund
+eller en ny pointersti, og brug **Opdatér valgt trainerfunktion**. At rette
+funktionsnavnet alene godkender ikke et gammelt offset efter en spilopdatering.
 
-For at prøve en kontakt vælger du efter samme søgeforløb **Kontakt**. Den bliver
-automatisk en **Fasthold værdi**-funktion. Brug `100` som værdi, aktivér den,
-ændr valutaen med **Saml +25**, og se den periodiske fastholdelse gendanne den
-valgte værdi. Slå kontakten fra for at gendanne den værdi, der gjaldt, da
-kontakten blev aktiveret.
+Genveje som `F1` eller `Ctrl+F2` virker i appens hovedvindue og den kompakte
+trainer-menu, når fokus ikke står i et tekst- eller valgfelt. De er **ikke
+globale spilgenveje** og virker derfor ikke, mens selve spillet har fokus.
+Slider og talindtastning betjenes fra den kompakte trainer-menu.
 
-En slider kræver minimum, maksimum og trin. En talindtastning lader dig vælge
-den konkrete værdi, når funktionen anvendes. Gendan-knappen virker kun i samme
-app-session, fordi en tidligere sessions “oprindelige værdi” ikke kan antages at
-være sikker efter genstart.
+Float-sliders kan bruge decimaltrin som `0.1`; brug punktum i talfelterne.
+Int64-/UInt64-sliders med minimum eller maksimum uden for `±2^53` skal
+betjenes med **Talindtastning**, så sliderens grafiske talrepræsentation ikke
+giver tab af heltalspræcision.
 
-Brug **Kopiér valgt**, **Flyt op**, **Flyt ned** og **Slet valgt** i editoren
-til at organisere menuen. Hvis en aktiv kontakt slettes, stopper programmet
-først fastholdelsen og gendanner sessionsværdien. Brug **Duplikér profil**, når
-du vil eksperimentere uden at ændre originalen. **Eksportér profil** laver en
-flytbar datafil; **Importér profil** opretter altid en ny lokal kopi og aktiverer
-ikke funktioner automatisk.
+**STOP ALLE (Esc)** stopper fastholdelser, slår skriveadgang fra og annullerer
+en igangværende søgning. Det skriver ikke en ny værdi og lover ikke at rulle
+tidligere engangsændringer tilbage. **Gendan oprindelig** kræver en kendt
+værdi fra samme adresse i samme aktuelle processtart. Hvis en pointer flytter
+sig, må den gamle værdi ikke gendannes i et nyt objekt.
 
-**STOP ALLE (Esc)** stopper straks alle aktive fastholdelser uden at skrive nye
-værdier eller nulstille testspillet. Brug **Nulstil testspil** kun når du også
-vil starte data og søgning forfra.
+## Gemte funktioner efter genstart
 
-## Lokale data og log
+Der findes tre typer henvisninger:
 
-Windows gemmer data her:
+- **Kun denne session:** fundet ligger uden for et kendt modul og gemmes som
+  adresse bundet til den aktuelle processtart. Det bliver ugyldigt efter
+  genstart. Det bliver ikke kaldt stabilt blot ved at gemme en tilfældig offset.
+- **Modulrelativ:** et kendt modul og en offset inden for modulets område.
+  Baseadressen opløses på ny efter genstart.
+- **Pointersti:** en modulrod efterfulgt af pointerled. Pointerbredde,
+  slutværdiens datatype og build-oplysninger gemmes og kontrolleres igen.
+
+For at finde en pointersti: vælg først et aktuelt søgeresultat, gå til
+**Pointerstier**, og tryk **Find stier til valgt værdi**. Brugerfladen tillader
+dybde 1–5 og et afgrænset maksimalt offset. Søgningen finder kun stier med
+modulrod og ikke-negative offsets. Den har også grænser for læsning,
+pointerantal, stier og arbejde; den garanterer ikke at finde enhver mulig sti.
+
+Pointeranalysen læser modulområder før de øvrige områder, så mulige rødder
+prioriteres. Den bruger stadig det samme samlede læsebudget: områderne
+læses ikke dobbelt, og budgettet bliver ikke automatisk større.
+Den almindelige værdisøgning bruger normal adresserækkefølge.
+
+Vælg en sti og **Brug valgt sti i Builder**, hvis du vil gemme den som en
+funktion. **Genvalidér fundne stier** beholder de stier, der aktuelt løser til
+det valgte søgeresultat. En bestået genvalidering beviser læsbarhed og
+adresseopløsning, ikke at spillets betydning er uændret.
+
+Gemte pointerhenvisninger kan indlæses i listen med **Hent stier fra
+profilen**. Efter en genstart kan du dermed genfinde værdien uafhængigt,
+vælge det nye søgeresultat og genvalidere profilens stier mod den nye adresse.
+Du behøver ikke starte en ny fuld pointersøgning for at foretage dette
+krydstjek. Almindelig profilvalidering kan stadig bruges uden en ny scanning.
+
+Efter spillets genstart: forbind til den nye proces, vælg profilen på
+**Min trainer og profiler**, tryk **Indlæs** og **Valider**. Funktionerne
+aktiveres aldrig automatisk. Programidentitet, arkitektur, exe-build og
+rodmodulets SHA-256-fingeraftryk kontrolleres. Ændrede builds kan kræve, at
+værdien genfindes og funktionen repareres. Spillets egne sessioner, save/load,
+levelskift og opdateringer skal stadig afprøves i det konkrete spil.
+
+## Profiler, genkendelse og log
+
+Proceslisten opdateres cirka hvert ottende sekund. Appen viser, når en kørende
+proces matcher en gemt profil, men du vælger selv tilknytning og profil.
+Genkendelsen er baseret på programidentitet, ikke en garanti om motorstøtte.
+Unity-/Unreal-navne i listen er kun filbaserede fingerpeg.
+
+Profiler kan duplikeres, eksporteres og importeres som `.trainerprofile.json`.
+Import opretter nye profil- og funktions-id'er og aktiverer ingen funktioner.
+Gemning beholder op til ti backups af profilens tidligere versioner.
 
 ```text
 %LOCALAPPDATA%\TrainerStudio\Profiles\*.trainerprofile.json
@@ -135,40 +181,74 @@ Windows gemmer data her:
 %LOCALAPPDATA%\TrainerStudio\events.jsonl
 ```
 
-Profiler bruger schema-version 2. `events.jsonl` er en tekstfil med én
-JSON-hændelse pr. linje og indeholder kun synlige testmålshændelser, funktion-id,
-før/efter-værdier og fejlbeskeder. Den indeholder ingen API-nøgler, scripts eller
-oplysninger fra andre processer.
+v0.3 bruger **profilformat 3** og kan migrere format 2 ved indlæsning.
+Når en profil er gemt i format 3, kan de gamle v0.2-apps ikke indlæse den.
+Behold en eksport eller backup af den gamle fil, hvis den også skal bruges
+med en ældre app.
 
-## Byg en selvstændig Windows .exe
+Fanen **Hændelser** viser handlinger og fejl. `events.jsonl` indeholder én
+JSON-post pr. hændelse, herunder målidentitet, funktions-id og relevante
+før/efter-værdier. Loggen er ikke et fuldt hukommelsesdump og indeholder ingen
+API-nøgler eller scripts.
 
-Kør i PowerShell fra `trainer-studio`:
+## Implementeret, testet og afventer spil
+
+| Område | Implementeret i v0.3 | Automatisk kontrol i denne udviklingsrunde | Rigtige spil |
+|---|---|---|---|
+| Procesliste, læsetilknytning og særskilt skriveadgang | Ja, Windows-adapter og brugerflade. | Otte Windows-API-testgrupper er implementeret og bygger; x64-/x86-kørsel afventer CI før release. | Afventer spil og launchere. |
+| 11 datatyper, seks søgemetoder, streaming og annullering | Ja, med justering, adresseinterval og budgetter. | 16 kernetests og 12 scannertests er kørt lokalt med succes. | Ydelse og værdifund afventer konkrete spil. |
+| Modul-, pointer- og sessionshenvisninger | Ja, inkl. buildkontrol og profilformat 3. | 18 referencetests er kørt lokalt med succes. | Genstart, save/load og levelskift afventer spil. |
+| Skrivning, readback, fastholdelse og sessionsbaseret gendan | Ja, med stop ved flyttet reference og afvisning af overlappende fastholdelser. | Kerne-/referencetests samt Windows-API-suite før release. | Virkning på faktisk gameplay afventer spil. |
+| Builder, redigering, profiler, genkendelse og kompakt menu | Ja. | Kernetests bestået; ti Windows-renderingskontroller skal køres i CI før release. | Brugervenlighed med rigtige profiler afventer. |
+| Unity/Unreal/ældre spil | Fælles Windows-fundament; ingen generel motorinspektør. | Ingen automatiske tests beviser støtte til alle motorbuilds. | Ingen af brugerens spil er endnu afprøvet. |
+| Hastighed | Slider til et identificeret datafelt kan oprettes. | Værdi- og intervalregler testes. | Feltet og dets effekt skal identificeres i spillet. |
+
+Den 23. oktober 2026 bestod **46 platformuafhængige tests** lokalt:
+16 kerne-, 12 scanner- og 18 referencetests. Appen og WPF-testprojektet
+byggede med 0 fejl og 0 advarsler. Den native Windows-testsuite bygger også,
+og publicering af dens selvstændige x86-fixture er gennemført lokalt.
+Windows-API- og WPF-kontrollerne er obligatoriske i releaseworkflowet og
+afventer faktisk Windows-kørsel ved denne
+statusopdatering. Et grønt Linux-build beviser kompilering, ikke
+Windows-kørsel; den endelige status fremgår af releasens workflowresultat.
+
+Der er endnu ikke CE-tabelimport, selvstændig trainer-eksport, globale
+hotkeys, drag-and-drop, debugger, kodepatching, strukturinspektion eller fuldt
+dansk/engelsk sprogskift. Der er ingen universel speedhack; hastighed kræver
+en identificeret data-værdi, som spillet faktisk bruger.
+
+## Kør eller byg fra kildekoden
+
+Åbn PowerShell i `trainer-studio`. På Windows kan du starte appen med:
+
+```powershell
+dotnet run --project .\src\TrainerStudio.App\TrainerStudio.App.csproj -c Release
+```
+
+De almindelige platformuafhængige kodetests køres med:
+
+```powershell
+dotnet run --project .\tests\TrainerStudio.Core.Tests\TrainerStudio.Core.Tests.csproj -c Release
+dotnet run --project .\tests\TrainerStudio.Scanner.Tests\TrainerStudio.Scanner.Tests.csproj -c Release
+dotnet run --project .\tests\TrainerStudio.Reference.Tests\TrainerStudio.Reference.Tests.csproj -c Release
+```
+
+Windows-API-testene bruger en kontrolleret buffer i automatiserede
+testprocesser. De er ikke et testspil og erstatter ikke senere spiltest.
+På Windows køres API- og rendertestene med:
+
+```powershell
+dotnet run --project .\tests\TrainerStudio.Windows.Tests\TrainerStudio.Windows.Tests.csproj -c Release
+dotnet run --project .\tests\TrainerStudio.Theme.Tests\TrainerStudio.Theme.Tests.csproj -c Release -- .\artifacts\theme-tests
+```
+
+Byg en selvstændig Windows-EXE med:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\build-windows.ps1
 ```
 
-Scriptet kører kerne- og Windows-tematestene og publicerer en selvstændig x64-udgave i
-`artifacts\TrainerStudio-win-x64\TrainerStudio.exe` sammen med en
-SHA-256-fil. Modtageren behøver ikke .NET SDK for at køre den publicerede
-udgave.
-
-Du kan også gøre det manuelt:
-
-```powershell
-dotnet publish .\src\TrainerStudio.App\TrainerStudio.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o .\artifacts\TrainerStudio-win-x64
-```
-
-Den publicerede EXE kan kompileres fra dette Linux-bygmiljø, men den kan ikke
-startes eller visuelt afprøves her. Kør derfor mindst kernetesten og det korte
-forløb ovenfor på Windows, før den deles.
-
-## Udviklingskontroller kørt her
-
-```text
-dotnet run --project tests/TrainerStudio.Core.Tests/TrainerStudio.Core.Tests.csproj -c Release
-dotnet build src/TrainerStudio.App/TrainerStudio.App.csproj -c Release -p:EnableWindowsTargeting=true
-```
-
-Begge var grønne den 22. oktober 2026: 16 kernetests bestod, og WPF-projektet
-byggede med 0 advarsler. WPF-vinduet kræver Windows for en faktisk GUI-kørsel.
+Buildscriptet skal gennemføre de krævede tests, før det publicerer
+`artifacts\TrainerStudio-win-x64\TrainerStudio.exe` og dens SHA-256-fil.
+Renderingskontrollen gemmer PNG-billeder af felter og hovedvindue. Manuel
+mus-/tastaturtest, høj DPI og rigtige spil kræver fortsat Windows-afprøvning.

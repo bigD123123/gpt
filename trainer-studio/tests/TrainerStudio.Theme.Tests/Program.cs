@@ -7,6 +7,7 @@ using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using TrainerStudio.Core;
 
 namespace TrainerStudio.Theme.Tests;
 
@@ -138,23 +139,51 @@ internal static class Program
                 AssertContrast(cell, "0x1000", 4.5, "table-selected-cell.png");
             });
 
-            Check("Actual MainWindow renders with the application theme", () =>
+            var workspace = new TrainerStudio.App.ProcessWorkspaceWindow { ShowActivated = false };
+            try
             {
-                var mainWindow = new TrainerStudio.App.MainWindow { ShowActivated = false };
-                try
+                workspace.Show();
+                Pump(workspace);
+                Check("Actual process workspace starts disconnected and renders with the application theme", () =>
                 {
-                    mainWindow.Show();
-                    Pump(mainWindow);
-                    SaveImage((FrameworkElement)mainWindow.Content, "main-window.png");
-                }
-                finally
+                    Require(!Named<Button>(workspace, "FirstScanButton").IsEnabled,
+                        "First scan must remain disabled until a process is explicitly attached.");
+                    Require(!Named<CheckBox>(workspace, "WritesCheckBox").IsEnabled &&
+                        Named<CheckBox>(workspace, "WritesCheckBox").IsChecked != true,
+                        "Startup must not enable process writes.");
+                    SaveImage((FrameworkElement)workspace.Content, "main-window.png");
+                });
+                Check("Workspace scan and builder controls enforce their visible rules", () =>
                 {
-                    mainWindow.Close();
-                }
-            });
+                    var condition = Named<ComboBox>(workspace, "ConditionBox");
+                    var searchValue = Named<TextBox>(workspace, "SearchValueBox");
+                    condition.SelectedIndex = (int)ScanCondition.UnknownInitialValue;
+                    Require(!searchValue.IsEnabled, "Unknown-initial scanning must not request an exact number.");
+                    condition.SelectedIndex = (int)ScanCondition.ExactValue;
+                    Require(searchValue.IsEnabled, "Exact-value scanning must allow the number to be entered.");
+
+                    var control = Named<ComboBox>(workspace, "ControlBox");
+                    var operation = Named<ComboBox>(workspace, "OperationBox");
+                    control.SelectedIndex = (int)TrainerControlKind.Toggle;
+                    Require(operation.SelectedIndex == (int)TrainerOperation.FreezeValue && !operation.IsEnabled,
+                        "A toggle must clearly represent a freeze rather than a one-shot action.");
+                    control.SelectedIndex = (int)TrainerControlKind.Slider;
+                    Require(operation.SelectedIndex == (int)TrainerOperation.SetValue && !operation.IsEnabled &&
+                        Named<UniformGrid>(workspace, "SliderOptionsPanel").Visibility == Visibility.Visible,
+                        "A slider must use a bounded set-value operation and expose its range inputs.");
+                    control.SelectedIndex = (int)TrainerControlKind.Button;
+                    Pump(workspace);
+                });
+            }
+            finally
+            {
+                workspace.Close();
+            }
+
+            Check("Compact trainer refresh retains typed input and changes state without performing actions", AssertCompactTrainerRefresh);
 
             Console.WriteLine(_failures == 0
-                ? "PASS: 8 Windows WPF theme checks"
+                ? "PASS: 10 Windows WPF theme and workspace checks"
                 : $"FAIL: {_failures} Windows WPF theme check(s)");
             Console.WriteLine($"Rendered evidence: {_outputDirectory}");
             return _failures == 0 ? 0 : 1;
@@ -179,6 +208,69 @@ internal static class Program
         ItemsSource = new[] { "Int32", "UInt32" },
         SelectedIndex = 0
     };
+
+    private static void AssertCompactTrainerRefresh()
+    {
+        // These are plain presentation records. No target is attached and the
+        // callbacks count invocations rather than read or write any memory.
+        var reference = new MemoryReference("ui-record", "ui-record", 16, ScanDataType.Int32, "100");
+        var numberFeature = new TrainerFeature(Guid.NewGuid(), "Typed value", "", "Controls",
+            TrainerControlKind.NumberInput, TrainerOperation.SetValue, reference, "100", null, null, null, null);
+        var toggleFeature = numberFeature with
+        {
+            Id = Guid.NewGuid(), Name = "Held value", Control = TrainerControlKind.Toggle,
+            Operation = TrainerOperation.FreezeValue
+        };
+        var features = new[] { numberFeature, toggleFeature };
+        var active = false;
+        var activationCalls = 0;
+        var deactivationCalls = 0;
+        var stopCalls = 0;
+        var panel = new TrainerStudio.App.TrainerPanelWindow(features, feature => feature.Id == toggleFeature.Id && active,
+            (_, _) => activationCalls++, _ => deactivationCalls++, () => stopCalls++)
+        {
+            ShowActivated = false
+        };
+        try
+        {
+            panel.Show();
+            Pump(panel);
+            var numberInput = Descendants<TextBox>(panel).Single();
+            numberInput.Text = "321";
+            numberInput.Select(1, 1);
+            var toggle = Descendants<CheckBox>(panel).Single();
+            Require(toggle.IsChecked != true, "The initial toggle should be inactive.");
+
+            active = true;
+            panel.Refresh(features.ToArray());
+            Pump(panel);
+            Require(ReferenceEquals(numberInput, Descendants<TextBox>(panel).Single()) && numberInput.Text == "321" &&
+                numberInput.SelectionStart == 1 && numberInput.SelectionLength == 1,
+                "A status refresh must retain the user's typed value and text selection.");
+            Require(toggle.IsChecked == true && Descendants<TextBlock>(panel).Any(label => label.Text == "AKTIV"),
+                "A status refresh must display the active toggle state.");
+
+            active = false;
+            panel.Refresh(features.ToArray());
+            Pump(panel);
+            Require(toggle.IsChecked != true, "The toggle must reflect a stopped runtime after refresh.");
+            Require(activationCalls == 0 && deactivationCalls == 0 && stopCalls == 0,
+                "Refreshing presentation state must not execute an action or stop callback.");
+            SaveImage((FrameworkElement)panel.Content, "compact-trainer.png");
+        }
+        finally
+        {
+            panel.Close();
+        }
+    }
+
+    private static T Named<T>(FrameworkElement root, string name) where T : FrameworkElement =>
+        root.FindName(name) as T ?? throw new InvalidOperationException($"Expected {typeof(T).Name} '{name}' was not found.");
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition) throw new InvalidOperationException(message);
+    }
 
     private static void Check(string name, Action assertion)
     {
@@ -248,6 +340,10 @@ internal static class Program
         var drawing = new DrawingVisual();
         using (var context = drawing.RenderOpen())
         {
+            // Window content can be transparent while the native host supplies
+            // its background. Preserve that surface in standalone PNG evidence.
+            context.DrawRectangle(Window.GetWindow(element)?.Background ?? Brushes.Transparent,
+                null, new Rect(0, 0, width, height));
             // Capture from the visual root, so a transparent cell or content
             // presenter includes its actual row/parent background.
             context.DrawRectangle(new VisualBrush(renderRoot)

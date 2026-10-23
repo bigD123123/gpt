@@ -19,6 +19,10 @@ public partial class TrainerPanelWindow : Window
     private readonly Action<TrainerFeature, string?> _activate;
     private readonly Action<TrainerFeature> _deactivate;
     private readonly Action _stopAll;
+    private IReadOnlyList<TrainerFeature>? _renderedFeatures;
+    private readonly Dictionary<Guid, TextBlock> _statusLabels = new();
+    private readonly Dictionary<Guid, CheckBox> _toggles = new();
+    private bool _updatingStates;
 
     public TrainerPanelWindow(
         IReadOnlyList<TrainerFeature> features,
@@ -40,6 +44,14 @@ public partial class TrainerPanelWindow : Window
     public void Refresh(IReadOnlyList<TrainerFeature> features)
     {
         _features = features?.ToArray() ?? throw new ArgumentNullException(nameof(features));
+        if (_renderedFeatures is not null && _renderedFeatures.SequenceEqual(_features))
+        {
+            RefreshStates();
+            return;
+        }
+        _renderedFeatures = _features;
+        _statusLabels.Clear();
+        _toggles.Clear();
         CategoriesPanel.Children.Clear();
 
         if (_features.Count == 0)
@@ -111,6 +123,7 @@ public partial class TrainerPanelWindow : Window
             Margin = new Thickness(8, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
+        _statusLabels[feature.Id] = status;
         Grid.SetColumn(status, 1);
         header.Children.Add(status);
         panel.Children.Add(header);
@@ -164,8 +177,9 @@ public partial class TrainerPanelWindow : Window
             IsChecked = _isActive(feature),
             Margin = new Thickness(4, 2, 4, 2)
         };
-        toggle.Checked += (_, _) => Activate(feature, null);
-        toggle.Unchecked += (_, _) => Deactivate(feature);
+        toggle.Checked += (_, _) => { if (!_updatingStates) Activate(feature, null); };
+        toggle.Unchecked += (_, _) => { if (!_updatingStates) Deactivate(feature); };
+        _toggles[feature.Id] = toggle;
         panel.Children.Add(toggle);
     }
 
@@ -227,6 +241,25 @@ public partial class TrainerPanelWindow : Window
     {
         _activate(feature, value);
         Refresh(_features);
+    }
+
+    private void RefreshStates()
+    {
+        _updatingStates = true;
+        try
+        {
+            foreach (var feature in _features)
+            {
+                var active = _isActive(feature);
+                if (_statusLabels.TryGetValue(feature.Id, out var label))
+                {
+                    label.Text = active ? "AKTIV" : "KLAR";
+                    label.Foreground = active ? new SolidColorBrush(Color.FromRgb(191, 230, 197)) : Brush("Muted");
+                }
+                if (_toggles.TryGetValue(feature.Id, out var toggle)) toggle.IsChecked = active;
+            }
+        }
+        finally { _updatingStates = false; }
     }
 
     private void Deactivate(TrainerFeature feature)

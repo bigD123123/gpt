@@ -57,9 +57,8 @@ public sealed record MemoryRegion(long BaseAddress, byte[] Bytes, string Name)
 }
 
 /// <summary>
-/// A target must be explicitly supplied by the application. The first release
-/// uses only the owned demo target; no arbitrary PID or remote target is part
-/// of this contract.
+/// A target must be explicitly selected and supplied by the application.
+/// The scanner does not enumerate processes or acquire access itself.
 /// </summary>
 public interface IApprovedMemoryTarget
 {
@@ -76,6 +75,51 @@ public interface IApprovedMemoryTarget
     bool TryRead(long address, ScanDataType type, out ScanValue value);
 
     bool TryWrite(long address, ScanValue value, out string error);
+}
+
+/// <summary>
+/// Optional bounded streaming source. Chunks are non-overlapping and ordered
+/// within each contiguous range; separate ranges may be priority-ordered.
+/// Consecutive chunks from one readable region use
+/// the same name, so scanners can inspect values spanning a chunk boundary.
+/// </summary>
+public interface IStreamingMemoryTarget
+{
+    IEnumerable<MemoryRegion> EnumerateMemory(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Identifies one lifetime of a target. A restarted process must receive a new
+/// session id even if its executable, profile identity or PID is unchanged.
+/// </summary>
+public interface ISessionMemoryTarget
+{
+    string SessionId { get; }
+
+    bool IsAlive { get; }
+}
+
+public sealed record TargetModule(string Name, long BaseAddress, long Size, string? Path = null)
+{
+    public long EndAddress => checked(BaseAddress + Size);
+}
+
+public interface IModuleMemoryTarget
+{
+    IReadOnlyList<TargetModule> Modules { get; }
+}
+
+/// <summary>
+/// Reports whether an enumerated snapshot stopped at a configured byte budget
+/// or skipped unreadable blocks. This is distinct from the candidate cap.
+/// </summary>
+public interface ISnapshotDiagnosticsTarget
+{
+    bool WasSnapshotTruncated { get; }
+
+    long SnapshotBytesRead { get; }
+
+    int SkippedReadCount { get; }
 }
 
 public readonly record struct ScanValue(ScanDataType Type, byte[] Bytes)
@@ -398,7 +442,12 @@ public static class ValueCodec
 
             var quotient = (valueAsDouble - minimumAsDouble) / stepAsDouble;
             var nearest = Math.Round(quotient);
-            return Math.Abs(quotient - nearest) <= 1e-9 * Math.Max(1d, Math.Abs(quotient));
+            // Float inputs carry single-precision rounding already. Decimal
+            // steps such as 0.1 must not reject 0.3 merely for binary rounding.
+            var tolerance = value.Type == ScanDataType.Float
+                ? Math.Min(1e-4, 4 * 1.1920928955078125e-7 * Math.Max(1d, Math.Abs(quotient)))
+                : Math.Min(1e-4, 1e-9 * Math.Max(1d, Math.Abs(quotient)));
+            return double.IsFinite(quotient) && Math.Abs(quotient - nearest) <= tolerance;
         }
 
         var stepAsDecimal = AsDecimal(step);

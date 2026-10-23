@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../TrainerStudio.Core/TrainerStudio.Core.csproj" />
+    <InternalsVisibleTo Include="TrainerStudio.Windows.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,15 +1,16 @@
 # Research og produktretning: Trainer Studio
 
-Dato: 22. oktober 2026
-Status: første fungerende version med v0.2-forbedringer
+Dato: 23. oktober 2026
+Status: oprindelig research med opdateret v0.3-status og roadmap
 
 ## Formål og afgrænsning
 
 Trainer Studio er tænkt som en moderne, lokalt kørende Windows-app til
-hukommelsesundersøgelse, profiler og en no-code Trainer Builder. Første version
-arbejder udelukkende med et selvudviklet og dokumenteret testmål. Den er
-udgangspunktet for senere støtte til programmer, som brugeren ejer eller
-udtrykkeligt har tilladelse til at undersøge.
+hukommelsesundersøgelse, profiler og en no-code Trainer Builder. De oprindelige
+v0.1/v0.2-udgaver arbejdede kun med et indbygget testmål. v0.3 implementerer
+tilknytning til Windows-processer, som brugeren ejer eller udtrykkeligt har
+tilladelse til at undersøge. Kompatibilitet med konkrete spil afventer spiltest.
+Der udvikles ingen nye testspil som erstatning for disse tests.
 
 Projektet omfatter ikke online-spil, serverstyrede værdier, anti-cheat,
 omgåelse af sikkerhedssoftware, skjulte funktioner, kodeinjektion, kernel-drivere
@@ -183,19 +184,22 @@ tilstrækkelig til den planlagte WPF-app og lokale testarbejdsgang.
 ## Foreslået arkitektur
 
 ```text
-TrainerStudio.App             WPF: begyndertilstand, senere avanceret tilstand
+TrainerStudio.App             WPF: procesworkspace og kompakt trainer
              │
 TrainerStudio.Core            scanning, datatyper, profiler, trænerhandlinger
              │
-IApprovedMemoryTarget         lille, kontrolleret grænseflade til et godkendt mål
+IApprovedMemoryTarget         fælles grænseflade til et godkendt mål
              │
-OwnedTestTarget               selvudviklet testbuffer i v0.2
+TrainerStudio.Windows         procesliste, x86/x64, regioner, læsning/skrivning
 
-Senere, separate moduler:
-TrainerStudio.Targets         autoriseret Windows-adapter
-TrainerStudio.Storage         SQLite-bibliotek/historik og JSON-import/eksport
-TrainerStudio.TestTarget      selvstændigt testprogram med kontrolleret IPC
-TrainerStudio.Tests           enheds-, genstarts- og integrationsprøver
+Testlag:
+Core/Scanner/Reference.Tests  platformuafhængige kodetests og byte-array-fixtures
+Windows.Tests                små automatiserede native proces-/buffertests
+Theme.Tests                  Windows-rendering og kontrastkontrol
+OwnedTestTarget              eksisterende v0.1/v0.2-fixture; ikke standard-UI
+
+Mulig senere lagring:
+TrainerStudio.Storage        SQLite ved større bibliotek/historik
 ```
 
 Kernen må ikke afhænge af WPF, vinduer, vilkårlige proces-id'er eller direkte
@@ -264,61 +268,62 @@ referenceopløsning, datatype og kontrolværdi. Status skal være tydelig:
 | Gul | Reference ser gyldig ud, men version/fingeraftryk afviger. | Bed om test før aktivering og forklar afvigelsen. |
 | Rød | Reference eller kontrolværdi er ugyldig. | Deaktivér funktionen og start reparationsflowet. |
 
-Profiler gemmes lokalt som versionerede JSON-filer i v1. SQLite er passende, når
-profilbibliotek, søgehistorik og sammenligninger bliver større. Import og eksport
-skal have en forhåndsvisning og aldrig overskrive en profil uden brugerens valg.
+Profiler gemmes lokalt som versionerede JSON-filer. v0.3 skriver format 3 og
+migrerer format 2 ved indlæsning. SQLite er en mulig senere løsning, når
+profilbibliotek og historik bliver større. Import skaber altid en ny kopi;
+forhåndsvisning og sammenligning kan udvides senere.
 
-## Første fungerende version: hvad der er med
+## Nuværende version: hvad der er implementeret
 
-Den aktuelle v0.2-kerne og WPF-skal leverer følgende mod det indbyggede testmål:
+v0.3's standardvindue er et procesworkspace. Den gamle testmodel findes
+fortsat i kildekoden og kernetestene, men der udvikles ingen nye testspil.
 
-- Et lokalt, selvudviklet testmål med dokumenterede værdier og distraktører,
-  som kan åbnes i et separat WPF-testvindue. Det deler bevidst proces med
-  hovedappen i v0.2.
-- Exact/unknown/increased/decreased/changed/unchanged-søgning over de beskrevne
-  primitive datatyper.
-- En mørk dansk begynderflade med testhandlinger, søgefelter og resultattabel.
-- Oprettelse af funktionsdata fra et valgt søgeresultat.
-- Knap, kontakt, slider og talindtastning som virkende, gemte kontroltyper i
-  WPF-skallen. Slideren validerer minimum, maksimum og trin; kontakt er
-  afgrænset til fastholdelse og knappen kan gendanne en sessionsværdi.
-- Et kompakt **Min trainer**-panel med funktionskort grupperet efter kategori.
-  Panelet viser de rigtige kontroller direkte og genbruger den samme
-  godkendelse, auditlog og stopadfærd som editoren.
-- Kopiering, flytning og sletning af funktioner i den aktuelle trainerprofil.
-  Sletning af en aktiv fastholdelse stopper og gendanner først værdien.
-- Sæt, tilføj, fasthold og sessionbaseret gendan med eksplicit bekræftelse ved
-  aktivering/deaktivering.
-- Lokal, atomisk JSON-gemning og indlæsning af profiler, modulrelative offsets
-  og validering af målidentitet, arkitektur, version og build-fingeraftryk.
-- Profilbibliotek med duplikering, eksport, kontrolleret import som ny kopi og
-  op til ti automatiske backups af tidligere gemte profilversioner. Importen
-  accepterer kun valideret JSON på højst 2 MiB og aktiverer aldrig en funktion.
-- Lokal JSONL-auditlog af testhandlinger, søgeresultater, trainerhandlinger,
-  profilhændelser, korrigerende fastholdelseswrites og synlige fejl.
-- En "hold øverst"-indstilling for det kompakte testvindue.
-- En synlig "Stop alle"-handling og `Esc`, der stopper aktive fastholdelser
-  uden at skrive en ny værdi eller nulstille målet.
-- Automatiske kernetests for scansekvenser, datatyper, profilrundtur, freeze,
-  versionsafvigelse, afvist deaktivering, auditlog, modulrelativ genstart og
-  gentagne ammunition-scenarier.
+- Procesliste, eksplicit tilknytning med læseadgang og særskilt aktivering af
+  skriveadgang. Windows-adapteren arbejder med x86-/x64-identitet, moduler og
+  læsbare regioner uden driver, injektion eller udvidede debugprivilegier.
+- Annullerbar streaming af exact/unknown/increased/decreased/changed/unchanged
+  over 11 primitive datatyper, med adresseinterval, justering og budgetter.
+  UI'et viser advarsel om delvise søgeresultater; ét fund efter et nået loft
+  beviser kun entydighed i den undersøgte del.
+- Oprettelse og redigering af knap, kontakt, slider og talfelt fra en valgt
+  værdi eller pointersti. Kategorier, beskrivelser, lokale app-genveje,
+  kopiering, rækkefølge og sletning er implementeret.
+- Sæt, tilføj, fasthold og sessionsbaseret gendan med eksplicit godkendelse,
+  readback og beskyttelse mod flyttede pointere og overlappende fastholdelser.
+- Afgrænset pointer-scan med modulrod, ikke-negative offsets og genvalidering.
+  UI'et tilbyder dybde 1–5; algoritmen har også læse- og arbejdsgrænser.
+  Moduler læses først inden for det samme bytebudget. Gemte stier kan hentes
+  fra profilen og krydstjekkes mod et nyt, uafhængigt fund efter genstart.
+- Sessions-, modul- og pointerhenvisninger. Sessionadresser afvises efter
+  procesgenstart. Exe-build og rodmodulets SHA-256-fingeraftryk kontrolleres.
+- JSON-profilformat 3 med migrering fra format 2, bibliotek, duplikering,
+  import/eksport og op til ti backups. Import og indlæsning aktiverer ikke
+  automatisk funktioner. En ny reference kan erstatte en brudt reference via
+  Builder uden at kassere funktionen.
+- Match mellem kørende processer og gemte profiler cirka hvert ottende sekund.
+  Brugeren vælger stadig proces og profil. Motorbetegnelser er filbaserede hints.
+- Kompakt trainerpanel, auditlog og synlig stophandling. **Esc** stopper
+  fastholdelser, slår skriveadgang fra og annullerer søgning uden nyt write.
 
-Følgende er **bevidst ikke** klar i v0.2 og må ikke beskrives som færdige:
+Automatiserede tests og reel spilkompatibilitet er separate statuspunkter.
+De platformuafhængige testserier suppleres med obligatoriske Windows-API- og
+renderingskontroller før release. Testene bruger små buffere og almindelige
+testprocesser; de er ikke nye testspil. Se den konkrete statusmatrix i
+[README](README.md) og [procesvejledningen](docs/PROCESS_SUPPORT.md).
 
-- Tilknytning til vilkårlige eller eksterne processer.
-- Separat testprogram via IPC og en genstartstest mod et rigtigt Windows-vindue.
-  Kernen simulerer allerede en ny modulbase ved genstart, men det er ikke samme
-  som en test af en separat proces.
-- Moduloffsets mod eksterne Windows-processer, pointer scanning og guided
-  pointer repair. Den indbyggede testmodel bruger allerede modulrelative
-  offsets, men har ikke en Windows-procesadapter.
-- Drag-and-drop, ikoner, temasystem, fuld dansk/engelsk-ressourcepakke,
-  globale hotkeys og en selvstændig eksporteret trainer.
-- Grafer, scanhistorik i UI, CE-tabelimport, selvstændig trainer-eksport,
-  plug-ins, debugger eller strukturinspektion.
+Følgende er **ikke** færdigt eller bevist i v0.3:
 
-Denne tydelige grænse er vigtig: testmodellen beviser scanner- og builderlogik,
-men den er ikke et løfte om bred procesunderstøttelse.
+- Kompatibilitet, ydeevne og stabil genbrug i brugerens faktiske Unity-,
+  Unreal- og ældre spil, især efter save/load, levelskift og spilopdateringer.
+- Generel Mono-/IL2CPP- eller UObject-inspektion med automatiske feltnavne.
+- Ubegrænset eller komplet pointeranalyse, pointermaps på disk og automatisk
+  reparation uden et genfundet, brugerafprøvet felt.
+- Globale hotkeys, drag-and-drop, ikoner, temasystem, fuldt dansk/engelsk
+  sprogskift, grafer og scanhistorik i brugerfladen.
+- CE-tabelimport, selvstændig trainer-eksport, plug-ins, debugger,
+  kodepatching og strukturinspektion.
+- Universel speedhack. En hastighedsslider kræver et identificeret datafelt
+  med en virkning, der kan afprøves i det konkrete spil.
 
 ## Prioriteret plan
 
@@ -327,7 +332,7 @@ men den er ikke et løfte om bred procesunderstøttelse.
 - Afslut denne rapport og hold kildehenvisninger opdaterede.
 - Skriv et enkelt regler-dokument: kun ejede/autoriserede lokale mål, ingen
   online- eller sikkerhedsomgåelse.
-- Fastlæg v1's testmål og accepttests.
+- Hold accepttests adskilt fra den senere kompatibilitetstest med rigtige spil.
 
 ### Fase 2 — Grundarkitektur og begynderoplevelse
 
@@ -335,18 +340,18 @@ men den er ikke et løfte om bred procesunderstøttelse.
 - Indfør dansk/engelsk-ressourcer, tilgængelig kontrast og høj-DPI-afprøvning.
 - Tilføj scanwizard, korte forklaringer og en synlig arbejdsstatus.
 
-### Fase 3 — Scanner, historik og testmål
+### Fase 3 — Scanner, historik og Windows-processer
 
-- Tilføj annullering, søgehistorik, scan-tidslinje og kandidatgraf.
-- Flyt testmålet til et separat selvudviklet Windows-program med dokumenteret
-  kommunikation og genstartsscenarier.
-- Afprøv 32/64-bit-identitet uden at gætte pointerbredde.
+- Streaming, annullering og Windows-adapter er implementeret. Udvid senere
+  med søgehistorik, scan-tidslinje og kandidatgraf.
+- Behold små automatiserede proces-/buffertests. Byg ikke separate testspil.
+- Afprøv 32/64-bit-identitet og proceslukning i Windows-CI og senere i spil.
 
 ### Fase 4 — Trainer Builder og personligt panel
 
-- Udvid det eksisterende kompakte trainerpanel med hotkeys, ikonmetadata og
-  drag-and-drop-rækkefølge. Kategorier, kopiering og knapbaseret rækkefølge er
-  allerede på plads.
+- Udvid senere de lokale app-genveje med valgbare globale hotkeys, og tilføj
+  ikonmetadata og drag-and-drop-rækkefølge. Kategorier, kopiering, redigering
+  og knapbaseret rækkefølge er allerede på plads.
 - Tilføj “prøv før gem” som en særskilt workflow-knap og udvid den eksisterende
   auditlog med filtrering/eksport.
 - Gør "hold øverst" og tilpassede temaer tilgængelige i det kompakte
@@ -354,15 +359,16 @@ men den er ikke et løfte om bred procesunderstøttelse.
 
 ### Fase 5 — Profiler og genstart
 
-- Udvid det lokale profilbibliotek med målgenkendelse og flere profiler pr.
-  program. Duplikering, eksport/import og backup er allerede implementeret.
-- Udvid den eksisterende validering af version/fingeraftryk og modulrelative
-  referencer med grøn/gul/rød-status direkte i bibliotekslisten.
+- Proces-/profilmatch, flere profiler pr. program, duplikering, eksport/import
+  og backup er implementeret. Udvid senere bibliotekets statusoversigt og
+  sammenligning mellem profilversioner.
+- Bevar sessions-, modul- og pointerregler samt kontrol af EXE og rodmodul.
 - Test hvert profilforløb efter rigtig genstart, ikke kun én session.
 
 ### Fase 6 — Avanceret, men stadig afgrænset analyse
 
-- Tilføj pointersti-visualisering og guidet reparation til godkendte testmål.
+- Udvid pointeranalyse og den eksisterende manuelle reparationsarbejdsgang med
+  visualisering og pointermaps, efter at den aktuelle løsning er afprøvet.
 - Tilføj realtidsmonitorering, grafer, profiler-sammenligning og fejllog.
 - Vurdér først derefter strukturvisning og et godkendt udvidelsessystem.
 
@@ -375,16 +381,20 @@ men den er ikke et løfte om bred procesunderstøttelse.
 
 ## Acceptkriterier for næste milepæl
 
-Før måltypen udvides, skal v0.2 kunne bevise:
+Den næste milepæl skal dokumentere:
 
-1. At et selvudviklet mål kan vælges og identificeres korrekt.
+1. At en valgt, godkendt Windows-proces identificeres korrekt.
 2. At exact/unknown og alle næste filtre indsnævrer kandidater korrekt.
 3. At en brugerbekræftet ændring er synlig og logget.
 4. At et fund kan blive til en deklarativ trainerfunktion.
 5. At en profil gemmes og indlæses uden tab af funktionens metadata.
 6. At ugyldig identitet eller version giver en tydelig advarsel.
 7. At fasthold og gendan opfører sig korrekt i én aktiv session.
-8. At testserier gentages uden uventede fejl.
+8. At testserier gentages uden uventede fejl og uden at erstatte reel spiltest.
+9. At processens genstart/exit, sessionadresser, rodmodulændring og flyttede
+   pointere afvises eller genvalideres korrekt.
+10. At senere rigtige spiltests dokumenterer de understøttede builds og deres
+    begrænsninger frem for at love støtte til en hel spilmotor.
 
 ## Kilder
 
