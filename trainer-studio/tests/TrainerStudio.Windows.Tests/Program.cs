@@ -30,6 +30,9 @@ internal static class Program
         catch (Exception exception)
         {
             Console.Error.WriteLine(exception);
+            var annotation = exception.ToString().Replace("%", "%25", StringComparison.Ordinal)
+                .Replace("\r", "%0D", StringComparison.Ordinal).Replace("\n", "%0A", StringComparison.Ordinal);
+            Console.Error.WriteLine($"::error title=Windows process test::{annotation}");
             return 1;
         }
     }
