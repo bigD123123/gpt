@@ -63,10 +63,13 @@ internal static class Program
             var expectedPointerSize = descriptor.Architecture == "x86" ? 4 : 8;
             Require(target.IsAlive && target.Identity.TargetId == descriptor.TargetId && target.PointerSize == expectedPointerSize, "Target must retain selected live process identity and pointer width.");
             var primaryResolved = target.TryResolveModuleBase(target.Identity.ModuleName, out var moduleBase);
+            var matchingModules = target.Modules.Where(module => StringComparer.OrdinalIgnoreCase.Equals(module.Name, target.Identity.ModuleName)).ToArray();
             Require(target.Modules.Count > 0 && primaryResolved && moduleBase > 0,
                 $"The primary module must resolve from the process module list. Expected='{target.Identity.ModuleName}'; " +
-                $"architecture={descriptor.Architecture}; resolved={primaryResolved}; base=0x{moduleBase:X}; error={target.LastModuleError ?? "none"}; " +
-                "modules=" + string.Join(" | ", target.Modules.Select(module => $"'{module.Name}'@0x{module.BaseAddress:X}, size={module.Size}, path='{module.Path}'")));
+                $"architecture={descriptor.Architecture}; count={target.Modules.Count}; matching={matchingModules.Length}; " +
+                $"resolved={primaryResolved}; base=0x{moduleBase:X}; error={target.LastModuleError ?? "none"}; " +
+                "module details=" + string.Join(" | ", matchingModules.Concat(target.Modules.Take(6)).Distinct().Take(12)
+                    .Select(module => $"'{module.Name}'@0x{module.BaseAddress:X}, size={module.Size}, path='{module.Path}'")));
             var duplicateModules = new[]
             {
                 new TargetModule("shared.dll", 0x1000, 4096, @"C:\one\shared.dll"),

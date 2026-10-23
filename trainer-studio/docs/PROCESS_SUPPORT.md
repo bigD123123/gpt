@@ -192,9 +192,9 @@ er gennemført. Windows-API- og renderingstestene skal bestå i CI før release.
 | Område | Implementering | Automatisk kontrol | Rigtige spil |
 |---|---|---|---|
 | Datatyper og First/Next Scan-filtre | 11 typer, seks filtre, streaming, justering, adresser og læsebudget. | 16 kerne- og 12 scannertests er kørt lokalt med succes. | Afventer Unity-, Unreal- og legacy-spil. |
-| Trainer Builder, profiler og kompakt menu | Forbundet til procesmål; opret/redigér/reparér/kopiér/flyt/slet. | Kernetests findes; nye Windows-renderingskontroller er obligatoriske før release. | Afventer afprøvning af faktiske ændringer. |
-| Procesliste og eksplicit tilknytning | Læseadgang først, særskilt tilladelse til skrivning. | Otte Windows-API-testgrupper er implementeret og bygger; x64-/x86-kørsel afventer CI. | Afventer launcher- og spilprocesser. |
-| Læsning, skrivning og fastholdelse i en proces | Windows-API'er, readback og stop ved proceslukning. | Automatiserede buffertests i egen og separat testproces; Windows-kørsel skal bestå før release. | Afventer gameplay, indlæsning og proceslukning i spil. |
+| Trainer Builder, profiler og kompakt menu | Forbundet til procesmål; opret/redigér/reparér/kopiér/flyt/slet. | Kernetests samt ti Windows-renderings-/UI-kontroller bestået. | Afventer afprøvning af faktiske ændringer. |
+| Procesliste og eksplicit tilknytning | Læseadgang først, særskilt tilladelse til skrivning. | Otte Windows-API-testgrupper bestået mod både x64- og x86-processer. | Afventer launcher- og spilprocesser. |
+| Læsning, skrivning og fastholdelse i en proces | Windows-API'er, readback og stop ved proceslukning. | Buffertests og rigtig adgang mellem Windows-processer er bestået. | Afventer gameplay, indlæsning og proceslukning i spil. |
 | Sessionsadresser, moduler og pointerstier | Format 3, modulrod, SHA-256-buildkontrol og sessionsgrænser. | 18 referencetests er kørt lokalt med succes. | Afventer faktiske processers ASLR og genstart. |
 | Afgrænset pointer-scan og genvalidering | Implementeret med ikke-negative offsets; UI-dybde 1–5 og arbejdsgrænser. | Almindelige byte-array-tests med kendte pointerkæder. | Afventer rigtige heapobjekter og flere genstarter. |
 | Genkendelse af gemte profiler | Proces-/profilmatch tilbydes cirka hvert ottende sekund uden automatisk aktivering. | Identitets- og versionsregler testes i kernen; procesdelen kræver Windows. | Afventer konkrete exe-stier og builds. |
@@ -203,9 +203,13 @@ er gennemført. Windows-API- og renderingstestene skal bestå i CI før release.
 Ved den lokale kontrol den 23. oktober 2026 bestod i alt **46 tests**
 (16 kerne + 12 scanner + 18 reference). App, WPF-testprojekt og native
 Windows-testsuite byggede med 0 advarsler og 0 fejl. Den selvstændige
-x86-fixture kunne publiceres lokalt. Ti Windows-renderingskontroller og de native
-Windows-API-kontroller afventer Windows-CI ved denne statusopdatering;
-de skal bestå før release.
+x86-fixture kunne publiceres lokalt. Ti WPF/UI-kontroller og de otte native
+Windows-API-testgrupper mod både x64- og x86-mål er siden kørt med succes i
+[Windows-CI](https://github.com/bigD123123/gpt/actions/runs/40010069719).
+Efter en fejl i modulopslaget under 32-bit-kontrollen blev adapteren gjort
+robust over for gentagne identiske poster: kun poster med samme navn,
+kendte sti, base og størrelse samles. Forskellige
+moduler med samme filnavn afvises fortsat som tvetydige.
 
 Automatiserede buffer- og pointertests er almindelige kodetests. De er ikke
 selvstændige testspil og må ikke bruges som bevis på bred spilkompatibilitet.

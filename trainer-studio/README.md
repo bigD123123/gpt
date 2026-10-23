@@ -195,11 +195,11 @@ API-nøgler eller scripts.
 
 | Område | Implementeret i v0.3 | Automatisk kontrol i denne udviklingsrunde | Rigtige spil |
 |---|---|---|---|
-| Procesliste, læsetilknytning og særskilt skriveadgang | Ja, Windows-adapter og brugerflade. | Otte Windows-API-testgrupper er implementeret og bygger; x64-/x86-kørsel afventer CI før release. | Afventer spil og launchere. |
+| Procesliste, læsetilknytning og særskilt skriveadgang | Ja, Windows-adapter og brugerflade. | Otte Windows-API-testgrupper bestået mod både x64- og x86-processer. | Afventer spil og launchere. |
 | 11 datatyper, seks søgemetoder, streaming og annullering | Ja, med justering, adresseinterval og budgetter. | 16 kernetests og 12 scannertests er kørt lokalt med succes. | Ydelse og værdifund afventer konkrete spil. |
 | Modul-, pointer- og sessionshenvisninger | Ja, inkl. buildkontrol og profilformat 3. | 18 referencetests er kørt lokalt med succes. | Genstart, save/load og levelskift afventer spil. |
-| Skrivning, readback, fastholdelse og sessionsbaseret gendan | Ja, med stop ved flyttet reference og afvisning af overlappende fastholdelser. | Kerne-/referencetests samt Windows-API-suite før release. | Virkning på faktisk gameplay afventer spil. |
-| Builder, redigering, profiler, genkendelse og kompakt menu | Ja. | Kernetests bestået; ti Windows-renderingskontroller skal køres i CI før release. | Brugervenlighed med rigtige profiler afventer. |
+| Skrivning, readback, fastholdelse og sessionsbaseret gendan | Ja, med stop ved flyttet reference og afvisning af overlappende fastholdelser. | Kerne-/referencetests og Windows-API-tests bestået. | Virkning på faktisk gameplay afventer spil. |
+| Builder, redigering, profiler, genkendelse og kompakt menu | Ja. | Kernetests og ti Windows-renderings-/UI-kontroller bestået. | Brugervenlighed med rigtige profiler afventer. |
 | Unity/Unreal/ældre spil | Fælles Windows-fundament; ingen generel motorinspektør. | Ingen automatiske tests beviser støtte til alle motorbuilds. | Ingen af brugerens spil er endnu afprøvet. |
 | Hastighed | Slider til et identificeret datafelt kan oprettes. | Værdi- og intervalregler testes. | Feltet og dets effekt skal identificeres i spillet. |
 
@@ -207,10 +207,12 @@ Den 23. oktober 2026 bestod **46 platformuafhængige tests** lokalt:
 16 kerne-, 12 scanner- og 18 referencetests. Appen og WPF-testprojektet
 byggede med 0 fejl og 0 advarsler. Den native Windows-testsuite bygger også,
 og publicering af dens selvstændige x86-fixture er gennemført lokalt.
-Windows-API- og WPF-kontrollerne er obligatoriske i releaseworkflowet og
-afventer faktisk Windows-kørsel ved denne
-statusopdatering. Et grønt Linux-build beviser kompilering, ikke
-Windows-kørsel; den endelige status fremgår af releasens workflowresultat.
+Windows-CI har desuden kørt de otte native testgrupper mod både en x64- og
+en x86-proces samt ti WPF/UI-kontroller med succes. Se det
+[gennemførte Windows-workflow](https://github.com/bigD123123/gpt/actions/runs/40010069719).
+32-bit-kontrollen førte til et mere robust WOW64-modulopslag, som håndterer
+gentagne identiske snapshotposter. Disse resultater beviser kodens afprøvede arbejdsgange;
+de beviser ikke kompatibilitet med et bestemt spil.
 
 Der er endnu ikke CE-tabelimport, selvstændig trainer-eksport, globale
 hotkeys, drag-and-drop, debugger, kodepatching, strukturinspektion eller fuldt
